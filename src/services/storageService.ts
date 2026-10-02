@@ -1,15 +1,18 @@
-import { Project, ProfileContent, ExperienceItem, EducationItem, MediaAsset } from '../types';
+import { Project, ProfileContent, ExperienceItem, EducationItem, MediaAsset, SkillCategory } from '../types';
 import { INITIAL_PROJECTS } from '../data/initialProjects';
 import { INITIAL_PROFILE } from '../data/initialProfile';
 import { INITIAL_EXPERIENCE, INITIAL_EDUCATION } from '../data/initialExperience';
+import { SKILL_CATEGORIES } from '../data/skillsData';
 import { db, OperationType, handleFirestoreError } from './firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 
 const PROJECTS_KEY = 'rp_portfolio_projects';
 const PROFILE_KEY = 'rp_portfolio_profile';
 const EXPERIENCE_KEY = 'rp_portfolio_experience';
 const EDUCATION_KEY = 'rp_portfolio_education';
+const SKILLS_KEY = 'rp_portfolio_skills';
 const MEDIA_KEY = 'rp_portfolio_media';
+const STORAGE_EVENT = 'rp_portfolio_storage_updated';
 
 // In-memory fallback map if localStorage is restricted
 const memoryStore = new Map<string, string>();
@@ -51,6 +54,20 @@ export const safeStorage = {
 };
 
 export const storageService = {
+  // Listen for storage updates across components
+  onUpdate(callback: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
+    const handler = () => callback();
+    window.addEventListener(STORAGE_EVENT, handler);
+    return () => window.removeEventListener(STORAGE_EVENT, handler);
+  },
+
+  notify() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(STORAGE_EVENT));
+    }
+  },
+
   // Sync state with Firestore in background without blocking local responsiveness
   async syncToFirestore(collectionName: string, id: string, data: any) {
     try {
@@ -73,23 +90,117 @@ export const storageService = {
     }
   },
 
-  // Pull initial cloud state if available
+  // Pull initial cloud state if available (Profile, Projects, Experience, Media)
   async loadFromCloud(): Promise<boolean> {
     try {
       if (!db) return false;
-      const snapshot = await getDocs(collection(db, 'projects'));
-      if (!snapshot.empty) {
-        const cloudProjects: Project[] = [];
-        snapshot.forEach(docSnap => {
-          cloudProjects.push(docSnap.data() as Project);
-        });
-        if (cloudProjects.length > 0) {
-          this.saveProjects(cloudProjects);
-          return true;
+      let hasLoadedAny = false;
+
+      // 1. Fetch Profile & Photo
+      try {
+        const profileSnap = await getDoc(doc(db, 'site_content', 'main_profile'));
+        if (profileSnap.exists()) {
+          const cloudProfile = profileSnap.data() as ProfileContent;
+          if (cloudProfile && cloudProfile.name) {
+            safeStorage.setItem(PROFILE_KEY, JSON.stringify(cloudProfile));
+            hasLoadedAny = true;
+          }
         }
+      } catch (profileErr) {
+        console.warn('Note: Could not fetch cloud profile', profileErr);
+      }
+
+      // 2. Fetch Projects
+      try {
+        const snapshot = await getDocs(collection(db, 'projects'));
+        if (!snapshot.empty) {
+          const cloudProjects: Project[] = [];
+          snapshot.forEach(docSnap => {
+            cloudProjects.push(docSnap.data() as Project);
+          });
+          if (cloudProjects.length > 0) {
+            safeStorage.setItem(PROJECTS_KEY, JSON.stringify(cloudProjects));
+            hasLoadedAny = true;
+          }
+        }
+      } catch (projErr) {
+        console.warn('Note: Could not fetch cloud projects', projErr);
+      }
+
+      // 3. Fetch Experiences
+      try {
+        const expSnap = await getDocs(collection(db, 'experiences'));
+        if (!expSnap.empty) {
+          const cloudExp: ExperienceItem[] = [];
+          expSnap.forEach(docSnap => {
+            cloudExp.push(docSnap.data() as ExperienceItem);
+          });
+          if (cloudExp.length > 0) {
+            safeStorage.setItem(EXPERIENCE_KEY, JSON.stringify(cloudExp));
+            hasLoadedAny = true;
+          }
+        }
+      } catch (expErr) {
+        console.warn('Note: Could not fetch cloud experiences', expErr);
+      }
+
+      // 4. Fetch Skills
+      try {
+        const skillsSnap = await getDocs(collection(db, 'skills'));
+        if (!skillsSnap.empty) {
+          const cloudSkills: SkillCategory[] = [];
+          skillsSnap.forEach(docSnap => {
+            cloudSkills.push(docSnap.data() as SkillCategory);
+          });
+          if (cloudSkills.length > 0) {
+            safeStorage.setItem(SKILLS_KEY, JSON.stringify(cloudSkills));
+            hasLoadedAny = true;
+          }
+        }
+      } catch (skillsErr) {
+        console.warn('Note: Could not fetch cloud skills', skillsErr);
+      }
+
+      // 5. Fetch Education
+      try {
+        const eduSnap = await getDocs(collection(db, 'education'));
+        if (!eduSnap.empty) {
+          const cloudEdu: EducationItem[] = [];
+          eduSnap.forEach(docSnap => {
+            cloudEdu.push(docSnap.data() as EducationItem);
+          });
+          if (cloudEdu.length > 0) {
+            safeStorage.setItem(EDUCATION_KEY, JSON.stringify(cloudEdu));
+            hasLoadedAny = true;
+          }
+        }
+      } catch (eduErr) {
+        console.warn('Note: Could not fetch cloud education', eduErr);
+      }
+
+      // 6. Fetch Media Assets
+      try {
+        const mediaSnap = await getDocs(collection(db, 'media_assets'));
+        if (!mediaSnap.empty) {
+          const cloudMedia: MediaAsset[] = [];
+          mediaSnap.forEach(docSnap => {
+            cloudMedia.push(docSnap.data() as MediaAsset);
+          });
+          if (cloudMedia.length > 0) {
+            safeStorage.setItem(MEDIA_KEY, JSON.stringify(cloudMedia));
+            hasLoadedAny = true;
+          }
+        }
+      } catch (mediaErr) {
+        console.warn('Note: Could not fetch cloud media', mediaErr);
+      }
+
+      if (hasLoadedAny) {
+        this.notify();
+        return true;
       }
     } catch (e) {
-      // Offline or initial run
+      // Offline or network error
     }
     return false;
   },
@@ -303,6 +414,7 @@ export const storageService = {
       console.warn('Could not persist profile', e);
     }
     this.syncToFirestore('site_content', 'main_profile', updated);
+    this.notify();
   },
 
   // --- EXPERIENCE ---
@@ -329,6 +441,7 @@ export const storageService = {
       console.warn('Could not persist experience', e);
     }
     items.forEach(item => this.syncToFirestore('experiences', item.id, item));
+    this.notify();
   },
 
   // --- EDUCATION ---
@@ -354,6 +467,35 @@ export const storageService = {
     } catch (e) {
       console.warn('Could not persist education', e);
     }
+    items.forEach(item => this.syncToFirestore('education', item.id, item));
+    this.notify();
+  },
+
+  // --- SKILLS & COMPETENCIES ---
+  getSkills(): SkillCategory[] {
+    try {
+      const data = safeStorage.getItem(SKILLS_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading skills from storage, using defaults', e);
+    }
+    this.saveSkills(SKILL_CATEGORIES);
+    return SKILL_CATEGORIES;
+  },
+
+  saveSkills(categories: SkillCategory[]): void {
+    try {
+      safeStorage.setItem(SKILLS_KEY, JSON.stringify(categories));
+    } catch (e) {
+      console.warn('Could not persist skills locally', e);
+    }
+    categories.forEach(cat => this.syncToFirestore('skills', cat.id, cat));
+    this.notify();
   },
 
   // --- FULL BACKUP & RESTORE ---
@@ -363,6 +505,7 @@ export const storageService = {
       profile: this.getProfile(),
       experience: this.getExperience(),
       education: this.getEducation(),
+      skills: this.getSkills(),
       media: this.getMediaAssets(),
       exportedAt: new Date().toISOString()
     };
@@ -384,9 +527,13 @@ export const storageService = {
       if (parsed.education && Array.isArray(parsed.education)) {
         this.saveEducation(parsed.education);
       }
+      if (parsed.skills && Array.isArray(parsed.skills)) {
+        this.saveSkills(parsed.skills);
+      }
       if (parsed.media && Array.isArray(parsed.media)) {
         safeStorage.setItem(MEDIA_KEY, JSON.stringify(parsed.media));
       }
+      this.notify();
       return true;
     } catch (e) {
       console.error('Invalid backup file', e);
@@ -399,10 +546,13 @@ export const storageService = {
     safeStorage.removeItem(PROFILE_KEY);
     safeStorage.removeItem(EXPERIENCE_KEY);
     safeStorage.removeItem(EDUCATION_KEY);
+    safeStorage.removeItem(SKILLS_KEY);
     safeStorage.removeItem(MEDIA_KEY);
     this.saveProjects(INITIAL_PROJECTS);
     this.saveProfile(INITIAL_PROFILE);
     this.saveExperience(INITIAL_EXPERIENCE);
     this.saveEducation(INITIAL_EDUCATION);
+    this.saveSkills(SKILL_CATEGORIES);
+    this.notify();
   }
 };

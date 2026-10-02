@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Building2, 
@@ -18,8 +18,18 @@ interface ExperiencePageProps {
 }
 
 export const ExperiencePage: React.FC<ExperiencePageProps> = ({ onNavigate }) => {
-  const experiences = storageService.getExperience();
-  const education = storageService.getEducation();
+  const [experiences, setExperiences] = useState(() => storageService.getExperience());
+  const [education, setEducation] = useState(() => storageService.getEducation());
+  const [profile, setProfile] = useState(() => storageService.getProfile());
+
+  useEffect(() => {
+    const unsubscribe = storageService.onUpdate(() => {
+      setExperiences(storageService.getExperience());
+      setEducation(storageService.getEducation());
+      setProfile(storageService.getProfile());
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] py-16 md:py-24">
@@ -29,13 +39,13 @@ export const ExperiencePage: React.FC<ExperiencePageProps> = ({ onNavigate }) =>
         <div className="max-w-3xl mb-16 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#DED8CC] bg-[#EFE9DC] text-xs font-semibold uppercase tracking-widest text-[#B08D57]">
             <Briefcase className="w-3.5 h-3.5" />
-            <span>Career Record</span>
+            <span>{profile.experiencePageEyebrow || 'Career Record'}</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-[#171A18]">
-            Experience & Journey
+            {profile.experiencePageTitle || 'Experience & Journey'}
           </h1>
           <p className="text-sm sm:text-base text-[#77736B] leading-relaxed font-sans">
-            A chronological timeline of product leadership, conversion rate optimization, lifecycle CRM engineering, and quantitative experimentation across high-growth domains.
+            {profile.experiencePageDescription || 'A chronological timeline of product leadership, conversion rate optimization, lifecycle CRM engineering, and quantitative experimentation across high-growth domains.'}
           </p>
         </div>
 

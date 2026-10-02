@@ -10,6 +10,7 @@ import { ExperiencePage } from './pages/ExperiencePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { AdminPage } from './pages/AdminPage';
+import { storageService } from './services/storageService';
 
 // Robust Error Boundary to guarantee the screen never stays blank
 interface ErrorBoundaryProps {
@@ -64,11 +65,25 @@ export default function App() {
   const getInitialPath = (): string => {
     try {
       if (typeof window !== 'undefined') {
-        // If hash routing is used (e.g. #/skills)
-        if (window.location.hash && window.location.hash.startsWith('#/')) {
-          return window.location.hash.replace('#', '');
-        }
+        const hash = window.location.hash;
         const pathname = window.location.pathname;
+        const search = window.location.search;
+
+        if (
+          search && 
+          (search.includes('admin') || search.includes('cms') || search.includes('page=admin'))
+        ) {
+          return '/admin';
+        }
+        if (hash && (hash.includes('admin') || hash === '#/admin' || hash === '#admin' || hash.includes('cms'))) {
+          return '/admin';
+        }
+        if (pathname && (pathname.includes('/admin') || pathname.includes('admin.html'))) {
+          return '/admin';
+        }
+        if (hash && hash.startsWith('#/')) {
+          return hash.replace('#', '');
+        }
         if (pathname && pathname !== '/index.html' && pathname !== '') {
           return pathname;
         }
@@ -83,11 +98,26 @@ export default function App() {
   const [isConnectOpen, setIsConnectOpen] = useState(false);
 
   useEffect(() => {
+    // Sync cloud state (profile photo, copy, projects) from Firestore on load
+    storageService.loadFromCloud();
+
     const handleLocationChange = () => {
-      if (window.location.hash && window.location.hash.startsWith('#/')) {
-        setCurrentPath(window.location.hash.replace('#', ''));
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      const search = window.location.search;
+
+      if (
+        search && 
+        (search.includes('admin') || search.includes('cms') || search.includes('page=admin'))
+      ) {
+        setCurrentPath('/admin');
+      } else if (hash && (hash.includes('admin') || hash === '#/admin' || hash === '#admin' || hash.includes('cms'))) {
+        setCurrentPath('/admin');
+      } else if (path && (path.includes('/admin') || path.includes('admin.html'))) {
+        setCurrentPath('/admin');
+      } else if (hash && hash.startsWith('#/')) {
+        setCurrentPath(hash.replace('#', ''));
       } else {
-        const path = window.location.pathname;
         setCurrentPath(path && path !== '/index.html' ? path : '/');
       }
     };

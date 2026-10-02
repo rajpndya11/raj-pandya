@@ -36,14 +36,20 @@ import {
   ShieldCheck,
   ShieldAlert,
   ChevronRight,
-  Menu
+  Menu,
+  GraduationCap,
+  Mail
 } from 'lucide-react';
 import { authService, BOOTSTRAP_ADMIN_EMAIL } from '../services/authService';
 import { storageService } from '../services/storageService';
+import { compressImage } from '../utils/imageCompressor';
 import { 
   Project, 
   ProfileContent, 
   ExperienceItem, 
+  EducationItem,
+  SkillCategory,
+  PillarItem,
   ProjectLink, 
   LinkType, 
   ProjectCategory,
@@ -58,7 +64,7 @@ interface AdminPageProps {
 }
 
 type AdminTab = 'projects' | 'content' | 'media' | 'settings';
-type ContentSubTab = 'profile' | 'experience';
+type ContentSubTab = 'home' | 'skills' | 'experience' | 'projects-page' | 'contact';
 type ProjectEditorTab = 'basic' | 'content' | 'wireframes' | 'links' | 'metrics' | 'blocks' | 'seo';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
@@ -72,7 +78,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   
   // Dashboard navigation tab
   const [activeTab, setActiveTab] = useState<AdminTab>('projects');
-  const [contentSubTab, setContentSubTab] = useState<ContentSubTab>('profile');
+  const [contentSubTab, setContentSubTab] = useState<ContentSubTab>('home');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Projects list state
@@ -92,10 +98,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   // Profile state
   const [profile, setProfile] = useState<ProfileContent>(storageService.getProfile());
   const [profileSaved, setProfileSaved] = useState(false);
+  const [isOptimizingPhoto, setIsOptimizingPhoto] = useState(false);
+  const [photoStatusMessage, setPhotoStatusMessage] = useState('');
 
   // Experience state
   const [experiences, setExperiences] = useState<ExperienceItem[]>(storageService.getExperience());
   const [expSaved, setExpSaved] = useState(false);
+
+  // Education state
+  const [educationList, setEducationList] = useState<EducationItem[]>(storageService.getEducation());
+  const [eduSaved, setEduSaved] = useState(false);
+
+  // Skills state
+  const [skillsList, setSkillsList] = useState<SkillCategory[]>(storageService.getSkills());
+  const [skillsSaved, setSkillsSaved] = useState(false);
+  const [newSkillText, setNewSkillText] = useState<{ [catId: string]: string }>({});
 
   // Passcode settings state
   const [newPasscode, setNewPasscode] = useState('');
@@ -141,6 +158,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     setProjects(storageService.getProjects());
     setProfile(storageService.getProfile());
     setExperiences(storageService.getExperience());
+    setEducationList(storageService.getEducation());
+    setSkillsList(storageService.getSkills());
     setMediaAssets(storageService.getMediaAssets());
   };
 
@@ -424,47 +443,50 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   // Direct cover image upload in project editor
-  const handleCoverImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editingProject) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setEditingProject({ ...editingProject, coverImage: result });
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 1400, 900, 0.85);
+        setEditingProject({ ...editingProject, coverImage: compressed });
+      } catch (err) {
+        console.warn('Cover image optimization note:', err);
+      }
     }
   };
 
   // Direct wireframe upload in project editor
-  const handleWireframeFileUpload = (wfId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleWireframeFileUpload = async (wfId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editingProject) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          handleUpdateWireframe(wfId, 'url', result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 1200, 900, 0.85);
+        handleUpdateWireframe(wfId, 'url', compressed);
+      } catch (err) {
+        console.warn('Wireframe image optimization note:', err);
+      }
     }
   };
 
-  // Direct profile photo upload
-  const handleProfilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Direct profile photo upload with automated compression & Firestore sync
+  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setProfile({ ...profile, photoUrl: result });
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        setIsOptimizingPhoto(true);
+        setPhotoStatusMessage('Optimizing photo for fast web performance & cloud database...');
+        const optimized = await compressImage(file, 900, 1200, 0.85);
+        const updated = { ...profile, photoUrl: optimized };
+        setProfile(updated);
+        // Instantly save to local cache and sync to Firestore
+        storageService.saveProfile(updated);
+        setPhotoStatusMessage('✓ Photo optimized & synced live to portfolio!');
+        setTimeout(() => setPhotoStatusMessage(''), 4000);
+      } catch (err: any) {
+        setPhotoStatusMessage(`Upload error: ${err.message || 'Could not process photo'}`);
+      } finally {
+        setIsOptimizingPhoto(false);
+      }
     }
   };
 
@@ -481,6 +503,129 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     storageService.saveExperience(experiences);
     setExpSaved(true);
     setTimeout(() => setExpSaved(false), 3000);
+  };
+
+  // Save skills
+  const handleSaveSkills = () => {
+    storageService.saveSkills(skillsList);
+    // Also save page headers in profile
+    storageService.saveProfile(profile);
+    setSkillsSaved(true);
+    setTimeout(() => setSkillsSaved(false), 3000);
+  };
+
+  const handleAddSkillToCategory = (catId: string) => {
+    const text = newSkillText[catId]?.trim();
+    if (!text) return;
+    const updated = skillsList.map(cat => {
+      if (cat.id === catId) {
+        if (cat.skills.includes(text)) return cat;
+        return { ...cat, skills: [...cat.skills, text] };
+      }
+      return cat;
+    });
+    setSkillsList(updated);
+    setNewSkillText({ ...newSkillText, [catId]: '' });
+  };
+
+  const handleRemoveSkillFromCategory = (catId: string, skillToRemove: string) => {
+    const updated = skillsList.map(cat => {
+      if (cat.id === catId) {
+        return { ...cat, skills: cat.skills.filter(s => s !== skillToRemove) };
+      }
+      return cat;
+    });
+    setSkillsList(updated);
+  };
+
+  const handleAddSkillCategory = () => {
+    const newCat: SkillCategory = {
+      id: `skill-cat-${Date.now()}`,
+      name: 'New Competency Category',
+      description: 'Frameworks, discovery techniques, and technical methodologies.',
+      skills: ['New Tool / Skill']
+    };
+    setSkillsList([...skillsList, newCat]);
+  };
+
+  const handleDeleteSkillCategory = (catId: string) => {
+    setSkillsList(skillsList.filter(c => c.id !== catId));
+  };
+
+  // Save education
+  const handleSaveEducation = () => {
+    storageService.saveEducation(educationList);
+    setEduSaved(true);
+    setTimeout(() => setEduSaved(false), 3000);
+  };
+
+  const handleAddEducation = () => {
+    const newEdu: EducationItem = {
+      id: `edu-${Date.now()}`,
+      degree: 'B.Tech / Specialization',
+      institution: 'University / Institute Name',
+      score: 'First Class / GPA',
+      status: 'Completed',
+      period: '2020 – 2024',
+      details: 'Relevant coursework, product leadership initiatives & distinctions.'
+    };
+    setEducationList([...educationList, newEdu]);
+  };
+
+  const handleDeleteEducation = (id: string) => {
+    setEducationList(educationList.filter(e => e.id !== id));
+  };
+
+  // Home Page Pillars & Metrics helpers
+  const handleAddPillar = () => {
+    const newPillar: PillarItem = {
+      id: `pillar-${Date.now()}`,
+      title: 'New Core Discipline',
+      category: 'Product Area',
+      description: 'Overview of execution strategy, customer discovery, and engineering delivery.',
+      tag: 'Discipline'
+    };
+    const updatedPillars = [...(profile.pillars || []), newPillar];
+    setProfile({ ...profile, pillars: updatedPillars });
+  };
+
+  const handleRemovePillar = (id: string) => {
+    const updatedPillars = (profile.pillars || []).filter(p => p.id !== id);
+    setProfile({ ...profile, pillars: updatedPillars });
+  };
+
+  const handleAddProfileMetric = () => {
+    const newMetric = { value: '100%', label: 'Key Result', sub: 'Impact Detail' };
+    setProfile({ ...profile, metrics: [...(profile.metrics || []), newMetric] });
+  };
+
+  const handleRemoveProfileMetric = (index: number) => {
+    const updated = [...(profile.metrics || [])];
+    updated.splice(index, 1);
+    setProfile({ ...profile, metrics: updated });
+  };
+
+  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const fileUrl = event.target?.result as string;
+      const updated = { ...profile, resumeUrl: fileUrl };
+      setProfile(updated);
+      storageService.saveProfile(updated);
+      storageService.saveMediaAsset({
+        id: `media-resume-${Date.now()}`,
+        name: file.name,
+        url: fileUrl,
+        type: file.type || 'application/pdf',
+        size: file.size,
+        createdAt: new Date().toISOString()
+      });
+      setPhotoStatusMessage('✓ Resume document uploaded & saved successfully!');
+      setTimeout(() => setPhotoStatusMessage(''), 4000);
+    };
+    reader.readAsDataURL(file);
   };
 
   // Change master passcode
@@ -1815,17 +1960,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => {
-                      setContentSubTab('profile');
+                      setContentSubTab('home');
                       setMobileSidebarOpen(false);
                     }}
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-2 cursor-pointer ${
-                      contentSubTab === 'profile'
+                      contentSubTab === 'home'
                         ? 'text-[#B08D57] font-bold bg-[#F7F4ED]'
                         : 'text-[#77736B] hover:text-[#171A18]'
                     }`}
                   >
                     <User className="w-3 h-3" />
-                    <span>Profile & Hero Copy</span>
+                    <span>Home Page</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContentSubTab('skills');
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-2 cursor-pointer ${
+                      contentSubTab === 'skills'
+                        ? 'text-[#B08D57] font-bold bg-[#F7F4ED]'
+                        : 'text-[#77736B] hover:text-[#171A18]'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Skills & Stack</span>
                   </button>
                   <button
                     type="button"
@@ -1840,7 +2000,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     }`}
                   >
                     <Briefcase className="w-3 h-3" />
-                    <span>Work Experience</span>
+                    <span>Experience & Edu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContentSubTab('projects-page');
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-2 cursor-pointer ${
+                      contentSubTab === 'projects-page'
+                        ? 'text-[#B08D57] font-bold bg-[#F7F4ED]'
+                        : 'text-[#77736B] hover:text-[#171A18]'
+                    }`}
+                  >
+                    <FolderKanban className="w-3 h-3" />
+                    <span>Projects Page Header</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContentSubTab('contact');
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-2 cursor-pointer ${
+                      contentSubTab === 'contact'
+                        ? 'text-[#B08D57] font-bold bg-[#F7F4ED]'
+                        : 'text-[#77736B] hover:text-[#171A18]'
+                    }`}
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>Contact & Meta</span>
                   </button>
                 </div>
               )}
@@ -2206,22 +2396,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* TAB 2: CONTENT SECTIONS (PROFILE, BIO & CAREER TIMELINE) */}
+        {/* TAB 2: CONTENT SECTIONS (ALL PORTFOLIO PAGES) */}
         {activeTab === 'content' && (
           <div className="space-y-6">
             {/* Content Sub Navigation */}
-            <div className="flex border-b border-[#DED8CC] space-x-2 sm:space-x-6 bg-white px-6 pt-4 rounded-t-2xl border-t border-l border-r shadow-xs">
+            <div className="flex flex-wrap border-b border-[#DED8CC] gap-2 sm:gap-4 bg-white px-4 sm:px-6 pt-4 rounded-t-2xl border-t border-l border-r shadow-xs">
               <button
                 type="button"
-                onClick={() => setContentSubTab('profile')}
+                onClick={() => setContentSubTab('home')}
                 className={`pb-3 px-3 font-semibold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                  contentSubTab === 'profile'
+                  contentSubTab === 'home'
                     ? 'border-[#B08D57] text-[#171A18] font-bold'
                     : 'border-transparent text-[#77736B] hover:text-[#171A18]'
                 }`}
               >
                 <User className="w-4 h-4 text-[#B08D57]" />
-                <span>Profile, Hero & Bio</span>
+                <span>Home Page</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setContentSubTab('skills')}
+                className={`pb-3 px-3 font-semibold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                  contentSubTab === 'skills'
+                    ? 'border-[#B08D57] text-[#171A18] font-bold'
+                    : 'border-transparent text-[#77736B] hover:text-[#171A18]'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-[#B08D57]" />
+                <span>Skills & Stack</span>
               </button>
 
               <button
@@ -2234,332 +2437,1288 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 }`}
               >
                 <Briefcase className="w-4 h-4 text-[#B08D57]" />
-                <span>Work Experience Timeline</span>
+                <span>Experience & Education</span>
               </button>
-            </div>
-
-            {/* Profile Sub-Section */}
-            {contentSubTab === 'profile' && (
-              <form onSubmit={handleSaveProfile} className="space-y-6 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
-              <div>
-                <h3 className="font-serif text-lg font-bold">Profile, Hero & Global Website Copy</h3>
-                <p className="text-xs text-[#77736B]">
-                  Update hero copy, product philosophy quote, CTAs, portrait image, and contact links.
-                </p>
-              </div>
 
               <button
-                type="submit"
-                className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md"
+                type="button"
+                onClick={() => setContentSubTab('projects-page')}
+                className={`pb-3 px-3 font-semibold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                  contentSubTab === 'projects-page'
+                    ? 'border-[#B08D57] text-[#171A18] font-bold'
+                    : 'border-transparent text-[#77736B] hover:text-[#171A18]'
+                }`}
               >
-                {profileSaved ? 'Saved Successfully!' : 'Save Profile Copy'}
+                <FolderKanban className="w-4 h-4 text-[#B08D57]" />
+                <span>Projects Page Header</span>
               </button>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  Eyebrow Category Headline
-                </label>
-                <input
-                  type="text"
-                  value={profile.eyebrow}
-                  onChange={(e) => setProfile({ ...profile, eyebrow: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                Main Hero Headline
-              </label>
-              <input
-                type="text"
-                value={profile.headline}
-                onChange={(e) => setProfile({ ...profile, headline: e.target.value })}
-                className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                About Me Bio (Lead Paragraph)
-              </label>
-              <textarea
-                rows={4}
-                value={profile.bio}
-                onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
-              />
-            </div>
-
-            {/* Steve Jobs Quote */}
-            <div className="p-5 rounded-xl bg-[#EFE9DC] border border-[#DED8CC] space-y-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#171A18]">
-                Philosophy Quote & Attribution
-              </span>
-              <textarea
-                rows={3}
-                value={profile.quote || ''}
-                onChange={(e) => setProfile({ ...profile, quote: e.target.value })}
-                className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm bg-white focus:border-[#B08D57] outline-none"
-              />
-              <input
-                type="text"
-                value={profile.quoteAuthor || ''}
-                onChange={(e) => setProfile({ ...profile, quoteAuthor: e.target.value })}
-                className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
-              />
-            </div>
-
-            {/* Hero Portrait Photo */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-[#DED8CC]">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  Hero Portrait Image URL
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={profile.photoUrl}
-                    onChange={(e) => setProfile({ ...profile, photoUrl: e.target.value })}
-                    className="flex-1 p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                  />
-                  <label className="px-4 py-2 rounded-xl bg-[#EFE9DC] hover:bg-[#DED8CC] border border-[#DED8CC] text-xs font-semibold flex items-center gap-1 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleProfilePhotoUpload}
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                    Portrait Tagline Badge
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.photoTagline}
-                    onChange={(e) => setProfile({ ...profile, photoTagline: e.target.value })}
-                    className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center p-4 bg-[#171A18] rounded-xl border border-[#2A2E2C]">
-                <img
-                  src={profile.photoUrl}
-                  alt={profile.name}
-                  className="w-40 aspect-[4/5] object-cover rounded-lg shadow-lg border border-[#DED8CC]"
-                />
-              </div>
-            </div>
-
-            {/* CTAs & Contact Links */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-4 border-t border-[#DED8CC]">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  Contact Email
-                </label>
-                <input
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  LinkedIn Profile URL
-                </label>
-                <input
-                  type="text"
-                  value={profile.linkedin}
-                  onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={profile.location}
-                  onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="text-right pt-4">
               <button
-                type="submit"
-                className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md"
+                type="button"
+                onClick={() => setContentSubTab('contact')}
+                className={`pb-3 px-3 font-semibold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                  contentSubTab === 'contact'
+                    ? 'border-[#B08D57] text-[#171A18] font-bold'
+                    : 'border-transparent text-[#77736B] hover:text-[#171A18]'
+                }`}
               >
-                {profileSaved ? 'Saved Successfully!' : 'Save All Profile Changes'}
+                <Mail className="w-4 h-4 text-[#B08D57]" />
+                <span>Contact & Resume</span>
               </button>
             </div>
-          </form>
-        )}
 
-        {/* Work Experience Sub-Section */}
-        {contentSubTab === 'experience' && (
-          <div className="space-y-6 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
-              <div>
-                <h3 className="font-serif text-lg font-bold">Career & Work Experience Timeline</h3>
-                <p className="text-xs text-[#77736B]">
-                  Manage career positions, responsibilities, and verified impact metrics.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    const newExp: ExperienceItem = {
-                      id: `exp-${Date.now()}`,
-                      company: 'New Company',
-                      role: 'Product Manager',
-                      period: '2026 – Present',
-                      location: 'Mumbai, India',
-                      responsibilities: ['Led product roadmap and sprint execution.']
-                    };
-                    setExperiences([newExp, ...experiences]);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold"
-                >
-                  + Add Position
-                </button>
-
-                <button
-                  onClick={handleSaveExperience}
-                  className="px-6 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider"
-                >
-                  {expSaved ? 'Saved!' : 'Save Timeline'}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {experiences.map((exp, idx) => (
-                <div key={exp.id} className="p-5 rounded-xl border border-[#DED8CC] bg-[#F7F4ED] space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-[#171A18]">Position #{idx + 1}</span>
-                    <button
-                      onClick={() => setExperiences(experiences.filter(e => e.id !== exp.id))}
-                      className="text-rose-600 hover:text-rose-800 text-xs font-semibold"
-                    >
-                      Remove
-                    </button>
+            {/* 1. HOME PAGE EDITOR */}
+            {contentSubTab === 'home' && (
+              <form onSubmit={handleSaveProfile} className="space-y-8 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">Home Page Content & Visuals</h3>
+                    <p className="text-xs text-[#77736B]">
+                      Customize your hero section, photo, product philosophy quote, About Me narrative, and 4 core disciplines.
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save Home Page'}
+                  </button>
+                </div>
+
+                {/* Hero Section Copy */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    1. Hero Section Copy
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B]">
-                        Company Name
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Full Name / Brand Title
                       </label>
                       <input
                         type="text"
-                        value={exp.company}
-                        onChange={(e) => {
-                          const updated = [...experiences];
-                          updated[idx] = { ...updated[idx], company: e.target.value };
-                          setExperiences(updated);
-                        }}
-                        className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        value={profile.name}
+                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B]">
-                        Role Title
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Eyebrow Category Badge
                       </label>
                       <input
                         type="text"
-                        value={exp.role}
-                        onChange={(e) => {
-                          const updated = [...experiences];
-                          updated[idx] = { ...updated[idx], role: e.target.value };
-                          setExperiences(updated);
-                        }}
-                        className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B]">
-                        Period
-                      </label>
-                      <input
-                        type="text"
-                        value={exp.period}
-                        onChange={(e) => {
-                          const updated = [...experiences];
-                          updated[idx] = { ...updated[idx], period: e.target.value };
-                          setExperiences(updated);
-                        }}
-                        className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B]">
-                        Location
-                      </label>
-                      <input
-                        type="text"
-                        value={exp.location}
-                        onChange={(e) => {
-                          const updated = [...experiences];
-                          updated[idx] = { ...updated[idx], location: e.target.value };
-                          setExperiences(updated);
-                        }}
-                        className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        value={profile.eyebrow}
+                        onChange={(e) => setProfile({ ...profile, eyebrow: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
-                      Key Responsibilities & Impact (1 per line)
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Main Hero Headline
+                    </label>
+                    <input
+                      type="text"
+                      value={profile.headline}
+                      onChange={(e) => setProfile({ ...profile, headline: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Hero Subtitle / Short Bio Paragraph
                     </label>
                     <textarea
                       rows={3}
-                      value={exp.responsibilities.join('\n')}
-                      onChange={(e) => {
-                        const updated = [...experiences];
-                        updated[idx] = { ...updated[idx], responsibilities: e.target.value.split('\n').filter(Boolean) };
-                        setExperiences(updated);
-                      }}
-                      className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                      value={profile.bio}
+                      onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Primary CTA Button Text
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.primaryCtaText || 'View Projects'}
+                        onChange={(e) => setProfile({ ...profile, primaryCtaText: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Secondary CTA Button Text
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.secondaryCtaText || 'Download Resume ↓'}
+                        onChange={(e) => setProfile({ ...profile, secondaryCtaText: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hero Portrait Photo */}
+                <div className="space-y-4 pt-4 border-t border-[#DED8CC]">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                      2. Editorial Portrait Photo & Floating Tagline
+                    </h4>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-medium">
+                      Cloud Synced
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div className="space-y-3">
+                      <p className="text-xs text-[#77736B] leading-relaxed">
+                        Upload your personal headshot photo. Photos from your phone/camera are automatically optimized and scaled so they never exceed browser storage limits and load in milliseconds on the live site.
+                      </p>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Paste image URL (https://...)"
+                          value={profile.photoUrl}
+                          onChange={(e) => {
+                            const updated = { ...profile, photoUrl: e.target.value };
+                            setProfile(updated);
+                            storageService.saveProfile(updated);
+                          }}
+                          className="flex-1 p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                        />
+                        <label className="px-4 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm whitespace-nowrap">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{isOptimizingPhoto ? 'Optimizing...' : 'Upload Photo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={isOptimizingPhoto}
+                            className="hidden"
+                            onChange={handleProfilePhotoUpload}
+                          />
+                        </label>
+                      </div>
+
+                      {photoStatusMessage && (
+                        <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <span>{photoStatusMessage}</span>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          Portrait Tagline Overlay Badge
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={profile.photoTagline}
+                          onChange={(e) => setProfile({ ...profile, photoTagline: e.target.value })}
+                          className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                        />
+                        <span className="text-[10px] text-[#77736B] mt-0.5 block">
+                          Text floating over portrait corner (e.g. "Better Products.\nBigger Impact.")
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center p-4 bg-[#171A18] rounded-xl border border-[#2A2E2C]">
+                      <div className="relative">
+                        <img
+                          src={profile.photoUrl}
+                          alt={profile.name}
+                          className="w-40 aspect-[4/5] object-cover rounded-lg shadow-xl border border-[#B08D57]/60"
+                        />
+                        <div className="absolute bottom-2 left-2 right-2 p-1.5 rounded bg-black/80 backdrop-blur-xs text-[10px] text-[#F7F4ED] font-medium text-center truncate">
+                          Live Homepage Preview
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product & AI Philosophy Quote */}
+                <div className="space-y-4 pt-4 border-t border-[#DED8CC]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    3. Philosophy Quote Banner
+                  </h4>
+                  <div className="p-4 rounded-xl bg-[#EFE9DC] border border-[#DED8CC] space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[#171A18] mb-1">
+                        Quote Statement
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={profile.quote || ''}
+                        onChange={(e) => setProfile({ ...profile, quote: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm bg-white focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          Author Name
+                        </label>
+                        <input
+                          type="text"
+                          value={profile.quoteAuthor || ''}
+                          onChange={(e) => setProfile({ ...profile, quoteAuthor: e.target.value })}
+                          className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          Author Role / Context
+                        </label>
+                        <input
+                          type="text"
+                          value={profile.quoteAuthorRole || ''}
+                          onChange={(e) => setProfile({ ...profile, quoteAuthorRole: e.target.value })}
+                          className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* About Me Section */}
+                <div className="space-y-4 pt-4 border-t border-[#DED8CC]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    4. About Me Section Copy
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        About Eyebrow Badge
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.aboutEyebrow || 'About Me'}
+                        onChange={(e) => setProfile({ ...profile, aboutEyebrow: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        About Main Heading
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.aboutHeading || 'Turning Ideas into Meaningful Products'}
+                        onChange={(e) => setProfile({ ...profile, aboutHeading: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Paragraph 1
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={profile.aboutParagraph1 || ''}
+                      onChange={(e) => setProfile({ ...profile, aboutParagraph1: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Paragraph 2
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={profile.aboutParagraph2 || ''}
+                      onChange={(e) => setProfile({ ...profile, aboutParagraph2: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
                     />
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+
+                {/* Core Disciplines (Pillars) */}
+                <div className="space-y-4 pt-4 border-t border-[#DED8CC]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                        5. Core Disciplines / What I Work On
+                      </h4>
+                      <p className="text-xs text-[#77736B]">
+                        These 4 cards appear on your homepage highlighting your primary methodologies.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddPillar}
+                      className="px-3 py-1.5 rounded-lg bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold text-[#171A18] cursor-pointer"
+                    >
+                      + Add Discipline
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(profile.pillars || []).map((pillar, pIdx) => (
+                      <div key={pillar.id || pIdx} className="p-4 rounded-xl border border-[#DED8CC] bg-[#F7F4ED] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#171A18]">Discipline #{pIdx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePillar(pillar.id)}
+                            className="text-rose-600 hover:text-rose-800 text-xs font-medium cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Title
+                            </label>
+                            <input
+                              type="text"
+                              value={pillar.title}
+                              onChange={(e) => {
+                                const updated = [...(profile.pillars || [])];
+                                updated[pIdx] = { ...updated[pIdx], title: e.target.value };
+                                setProfile({ ...profile, pillars: updated });
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Tag Badge
+                            </label>
+                            <input
+                              type="text"
+                              value={pillar.tag}
+                              onChange={(e) => {
+                                const updated = [...(profile.pillars || [])];
+                                updated[pIdx] = { ...updated[pIdx], tag: e.target.value };
+                                setProfile({ ...profile, pillars: updated });
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Description
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={pillar.description}
+                            onChange={(e) => {
+                              const updated = [...(profile.pillars || [])];
+                              updated[pIdx] = { ...updated[pIdx], description: e.target.value };
+                              setProfile({ ...profile, pillars: updated });
+                            }}
+                            className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Key Impact Metrics */}
+                <div className="space-y-4 pt-4 border-t border-[#DED8CC]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                        6. Key Impact Metrics
+                      </h4>
+                      <p className="text-xs text-[#77736B]">
+                        Highlight metrics shown across your portfolio (e.g., 50+ Projects, 66% CPL Reduction).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddProfileMetric}
+                      className="px-3 py-1.5 rounded-lg bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold text-[#171A18] cursor-pointer"
+                    >
+                      + Add Metric
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {(profile.metrics || []).map((m, mIdx) => (
+                      <div key={mIdx} className="p-3 rounded-xl border border-[#DED8CC] bg-[#F7F4ED] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#77736B]">Metric #{mIdx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProfileMetric(mIdx)}
+                            className="text-rose-600 hover:text-rose-800 text-[10px] font-medium cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Value (e.g. 50+)"
+                          value={m.value}
+                          onChange={(e) => {
+                            const updated = [...(profile.metrics || [])];
+                            updated[mIdx] = { ...updated[mIdx], value: e.target.value };
+                            setProfile({ ...profile, metrics: updated });
+                          }}
+                          className="w-full p-1.5 rounded border border-[#DED8CC] text-xs font-bold bg-white focus:border-[#B08D57] outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Label (e.g. Projects)"
+                          value={m.label}
+                          onChange={(e) => {
+                            const updated = [...(profile.metrics || [])];
+                            updated[mIdx] = { ...updated[mIdx], label: e.target.value };
+                            setProfile({ ...profile, metrics: updated });
+                          }}
+                          className="w-full p-1.5 rounded border border-[#DED8CC] text-[11px] bg-white focus:border-[#B08D57] outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Subtext / Detail"
+                          value={m.sub || ''}
+                          onChange={(e) => {
+                            const updated = [...(profile.metrics || [])];
+                            updated[mIdx] = { ...updated[mIdx], sub: e.target.value };
+                            setProfile({ ...profile, metrics: updated });
+                          }}
+                          className="w-full p-1.5 rounded border border-[#DED8CC] text-[10px] text-[#77736B] bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="text-right pt-4 border-t border-[#DED8CC]">
+                  <button
+                    type="submit"
+                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save All Home Page Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 2. SKILLS PAGE EDITOR */}
+            {contentSubTab === 'skills' && (
+              <div className="space-y-6 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">Skills Page Header & Competency Stack</h3>
+                    <p className="text-xs text-[#77736B]">
+                      Manage all skills, frameworks, tools, and technical categories displayed on the public /skills page.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleAddSkillCategory}
+                      className="px-4 py-2.5 rounded-xl bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold text-[#171A18] cursor-pointer"
+                    >
+                      + Add Category
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveSkills}
+                      className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    >
+                      {skillsSaved ? 'Saved Live!' : 'Save All Skills'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Skills Page Header Copy */}
+                <div className="p-5 rounded-xl bg-[#F7F4ED] border border-[#DED8CC] space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    Skills Page Header Copy
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Eyebrow Badge
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.skillsPageEyebrow || 'Competencies & Stack'}
+                        onChange={(e) => setProfile({ ...profile, skillsPageEyebrow: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Page Title
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.skillsPageTitle || 'Skills & Capabilities'}
+                        onChange={(e) => setProfile({ ...profile, skillsPageTitle: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Header Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={profile.skillsPageDescription || ''}
+                      onChange={(e) => setProfile({ ...profile, skillsPageDescription: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Skill Categories List */}
+                <div className="space-y-6">
+                  {skillsList.map((category, catIdx) => (
+                    <div key={category.id} className="p-6 rounded-2xl border border-[#DED8CC] bg-[#F7F4ED] space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-[#171A18]">
+                          Category #{catIdx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSkillCategory(category.id)}
+                          className="text-rose-600 hover:text-rose-800 text-xs font-semibold cursor-pointer"
+                        >
+                          Delete Category
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Category Name
+                          </label>
+                          <input
+                            type="text"
+                            value={category.name}
+                            onChange={(e) => {
+                              const updated = [...skillsList];
+                              updated[catIdx] = { ...updated[catIdx], name: e.target.value };
+                              setSkillsList(updated);
+                            }}
+                            className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs font-bold bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Category Description
+                          </label>
+                          <input
+                            type="text"
+                            value={category.description}
+                            onChange={(e) => {
+                              const updated = [...skillsList];
+                              updated[catIdx] = { ...updated[catIdx], description: e.target.value };
+                              setSkillsList(updated);
+                            }}
+                            className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Current skills pills */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#77736B] mb-2">
+                          Skills, Frameworks & Tools ({category.skills.length})
+                        </label>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {category.skills.map((skill, sIdx) => (
+                            <span 
+                              key={sIdx}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-[#DED8CC] text-xs font-medium text-[#171A18] shadow-xs"
+                            >
+                              <span>{skill}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSkillFromCategory(category.id, skill)}
+                                className="text-[#77736B] hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Remove skill"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Inline add skill */}
+                        <div className="flex gap-2 max-w-md">
+                          <input
+                            type="text"
+                            placeholder="Add a new skill or tool (e.g. Mixpanel, Claude Code)..."
+                            value={newSkillText[category.id] || ''}
+                            onChange={(e) => setNewSkillText({ ...newSkillText, [category.id]: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddSkillToCategory(category.id);
+                              }
+                            }}
+                            className="flex-1 p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddSkillToCategory(category.id)}
+                            className="px-4 py-2 rounded-lg bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-semibold cursor-pointer transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-right pt-4 border-t border-[#DED8CC]">
+                  <button
+                    type="button"
+                    onClick={handleSaveSkills}
+                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {skillsSaved ? 'Saved Live!' : 'Save All Skills Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. EXPERIENCE & EDUCATION PAGE EDITOR */}
+            {contentSubTab === 'experience' && (
+              <div className="space-y-8 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">Experience & Education Timeline</h3>
+                    <p className="text-xs text-[#77736B]">
+                      Manage career positions, impact metrics, linked case studies, and degrees/certifications on /experience.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newExp: ExperienceItem = {
+                          id: `exp-${Date.now()}`,
+                          company: 'New Company',
+                          role: 'Product Manager',
+                          period: '2026 – Present',
+                          location: 'Mumbai, India',
+                          responsibilities: ['Led product roadmap, user research, and cross-functional engineering execution.'],
+                          impactMetrics: [{ value: '30%', label: 'Metric Lift' }]
+                        };
+                        setExperiences([newExp, ...experiences]);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold text-[#171A18] cursor-pointer"
+                    >
+                      + Add Position
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveExperience}
+                      className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    >
+                      {expSaved ? 'Saved Live!' : 'Save Experience'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Experience Page Header Copy */}
+                <div className="p-5 rounded-xl bg-[#F7F4ED] border border-[#DED8CC] space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    Experience Page Header Copy
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Eyebrow Badge
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.experiencePageEyebrow || 'Career Record'}
+                        onChange={(e) => setProfile({ ...profile, experiencePageEyebrow: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Page Title
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.experiencePageTitle || 'Experience & Journey'}
+                        onChange={(e) => setProfile({ ...profile, experiencePageTitle: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Header Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={profile.experiencePageDescription || ''}
+                      onChange={(e) => setProfile({ ...profile, experiencePageDescription: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Career Positions */}
+                <div className="space-y-6">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    Career Positions Timeline ({experiences.length})
+                  </h4>
+
+                  {experiences.map((exp, idx) => (
+                    <div key={exp.id} className="p-6 rounded-2xl border border-[#DED8CC] bg-[#F7F4ED] space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-[#171A18]">
+                          Position #{idx + 1} {exp.company ? `— ${exp.company}` : ''}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <label className="inline-flex items-center gap-1.5 text-xs text-[#77736B] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={exp.featured || false}
+                              onChange={(e) => {
+                                const updated = [...experiences];
+                                updated[idx] = { ...updated[idx], featured: e.target.checked };
+                                setExperiences(updated);
+                              }}
+                              className="rounded border-[#DED8CC] text-[#B08D57]"
+                            />
+                            <span>Featured on Homepage</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setExperiences(experiences.filter(e => e.id !== exp.id))}
+                            className="text-rose-600 hover:text-rose-800 text-xs font-semibold cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Company Name
+                          </label>
+                          <input
+                            type="text"
+                            value={exp.company}
+                            onChange={(e) => {
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], company: e.target.value };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Role Title
+                          </label>
+                          <input
+                            type="text"
+                            value={exp.role}
+                            onChange={(e) => {
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], role: e.target.value };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Period
+                          </label>
+                          <input
+                            type="text"
+                            value={exp.period}
+                            onChange={(e) => {
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], period: e.target.value };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            value={exp.location}
+                            onChange={(e) => {
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], location: e.target.value };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Linked case study slug */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Linked Project Case Study
+                          </label>
+                          <select
+                            value={exp.caseStudySlug || ''}
+                            onChange={(e) => {
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], caseStudySlug: e.target.value || undefined };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          >
+                            <option value="">None (No link)</option>
+                            {projects.map(p => (
+                              <option key={p.slug} value={p.slug}>
+                                {p.title} (/projects/{p.slug})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Impact Metrics (Label: Value, comma-separated)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="CPL Reduction: ₹9K → ₹3K, Lead Conversion: 8% → 24%"
+                            value={(exp.impactMetrics || []).map(m => `${m.label}: ${m.value}`).join(', ')}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const parsed = raw.split(',').map(s => {
+                                const [label, val] = s.split(':').map(x => x?.trim());
+                                return label && val ? { label, value: val } : null;
+                              }).filter(Boolean) as { label: string; value: string }[];
+                              const updated = [...experiences];
+                              updated[idx] = { ...updated[idx], impactMetrics: parsed };
+                              setExperiences(updated);
+                            }}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                          Key Responsibilities & Achievements (1 per line)
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={exp.responsibilities.join('\n')}
+                          onChange={(e) => {
+                            const updated = [...experiences];
+                            updated[idx] = { ...updated[idx], responsibilities: e.target.value.split('\n').filter(Boolean) };
+                            setExperiences(updated);
+                          }}
+                          className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Education & Certifications Section */}
+                <div className="space-y-6 pt-6 border-t border-[#DED8CC]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                        Education & Academic Distinctions ({educationList.length})
+                      </h4>
+                      <p className="text-xs text-[#77736B]">
+                        Degrees, universities, scores, and honors displayed in the Education section.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleAddEducation}
+                        className="px-3 py-1.5 rounded-lg bg-[#EFE9DC] hover:bg-[#DED8CC] text-xs font-semibold text-[#171A18] cursor-pointer"
+                      >
+                        + Add Education
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEducation}
+                        className="px-5 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                      >
+                        {eduSaved ? 'Saved Live!' : 'Save Education'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {educationList.map((edu, eduIdx) => (
+                      <div key={edu.id} className="p-5 rounded-xl border border-[#DED8CC] bg-[#F7F4ED] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#171A18]">
+                            Degree #{eduIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEducation(edu.id)}
+                            className="text-rose-600 hover:text-rose-800 text-xs font-medium cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Degree / Program
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.degree}
+                              onChange={(e) => {
+                                const updated = [...educationList];
+                                updated[eduIdx] = { ...updated[eduIdx], degree: e.target.value };
+                                setEducationList(updated);
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Institution
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.institution}
+                              onChange={(e) => {
+                                const updated = [...educationList];
+                                updated[eduIdx] = { ...updated[eduIdx], institution: e.target.value };
+                                setEducationList(updated);
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Period
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.period || ''}
+                              onChange={(e) => {
+                                const updated = [...educationList];
+                                updated[eduIdx] = { ...updated[eduIdx], period: e.target.value };
+                                setEducationList(updated);
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                              Score / Grade / Status
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.score}
+                              onChange={(e) => {
+                                const updated = [...educationList];
+                                updated[eduIdx] = { ...updated[eduIdx], score: e.target.value };
+                                setEducationList(updated);
+                              }}
+                              className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Coursework, Distinctions & Specialization Details
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={edu.details || ''}
+                            onChange={(e) => {
+                              const updated = [...educationList];
+                              updated[eduIdx] = { ...updated[eduIdx], details: e.target.value };
+                              setEducationList(updated);
+                            }}
+                            className="w-full p-2 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="text-right pt-4 border-t border-[#DED8CC]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveExperience();
+                      handleSaveEducation();
+                      storageService.saveProfile(profile);
+                    }}
+                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {expSaved && eduSaved ? 'Saved Live!' : 'Save Experience & Education'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4. PROJECTS PAGE HEADER EDITOR */}
+            {contentSubTab === 'projects-page' && (
+              <form onSubmit={handleSaveProfile} className="space-y-6 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">Projects Page Header & Filter Copy</h3>
+                    <p className="text-xs text-[#77736B]">
+                      Edit the headline, eyebrow badge, and introductory narrative shown at the top of the /projects case studies directory.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save Projects Header'}
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Eyebrow Category Badge
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.projectsPageEyebrow || 'Portfolio Case Studies'}
+                        onChange={(e) => setProfile({ ...profile, projectsPageEyebrow: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                        Projects Page Main Title
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.projectsPageTitle || 'Featured Work & Case Studies'}
+                        onChange={(e) => setProfile({ ...profile, projectsPageTitle: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Projects Page Description Paragraph
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={profile.projectsPageDescription || ''}
+                      onChange={(e) => setProfile({ ...profile, projectsPageDescription: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick link banner to edit case study projects */}
+                <div className="p-5 rounded-xl bg-[#EFE9DC] border border-[#DED8CC] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-xs text-[#171A18] uppercase tracking-wider">
+                      Need to edit individual case studies, images, and wireframes?
+                    </h4>
+                    <p className="text-xs text-[#77736B]">
+                      Switch to the "Projects" tab in the left sidebar to add, modify, or publish detailed product case studies.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('projects')}
+                    className="px-4 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors"
+                  >
+                    Open Projects Editor →
+                  </button>
+                </div>
+
+                <div className="text-right pt-4 border-t border-[#DED8CC]">
+                  <button
+                    type="submit"
+                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save Projects Header'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 5. CONTACT & RESUME EDITOR */}
+            {contentSubTab === 'contact' && (
+              <form onSubmit={handleSaveProfile} className="space-y-6 bg-white p-6 sm:p-8 rounded-b-2xl border border-[#DED8CC] shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#DED8CC] pb-4">
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">Contact Details, Resume & Availability</h3>
+                    <p className="text-xs text-[#77736B]">
+                      Update your direct email, LinkedIn profile, geographic location, current hiring availability, and resume download file.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save Contact'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Direct Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={profile.email}
+                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      LinkedIn Profile URL
+                    </label>
+                    <input
+                      type="text"
+                      value={profile.linkedin}
+                      onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Current Location
+                    </label>
+                    <input
+                      type="text"
+                      value={profile.location}
+                      onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                      Availability Status
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Open to Principal & Lead PM roles"
+                      value={profile.availabilityStatus || ''}
+                      onChange={(e) => setProfile({ ...profile, availabilityStatus: e.target.value })}
+                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Resume Download / Upload */}
+                <div className="pt-4 border-t border-[#DED8CC] space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
+                    Resume PDF Document
+                  </h4>
+                  <p className="text-xs text-[#77736B]">
+                    Upload your latest CV/Resume PDF or enter an external document link (Google Drive, Dropbox, Notion). When visitors click "Download Resume", this file will open.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      placeholder="Paste PDF link (https://...)"
+                      value={profile.resumeUrl || ''}
+                      onChange={(e) => setProfile({ ...profile, resumeUrl: e.target.value })}
+                      className="flex-1 p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                    />
+
+                    <label className="px-5 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Resume PDF</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.doc,.docx"
+                        className="hidden"
+                        onChange={handleResumeUpload}
+                      />
+                    </label>
+                  </div>
+
+                  {profile.resumeUrl && (
+                    <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span className="truncate flex-1 font-medium">Active Resume: {profile.resumeUrl}</span>
+                      <a 
+                        href={profile.resumeUrl} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-[#B08D57] underline hover:text-[#171A18] font-semibold"
+                      >
+                        Preview
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right pt-4 border-t border-[#DED8CC]">
+                  <button
+                    type="submit"
+                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    {profileSaved ? 'Saved Live!' : 'Save All Contact Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
+
           </div>
         )}
 

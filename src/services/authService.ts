@@ -13,7 +13,11 @@ const AUTH_KEY = 'rp_admin_auth';
 const PASSCODE_KEY = 'rp_admin_passcode';
 const DEFAULT_PASSCODE = 'raj1131';
 
-// Primary authorized bootstrap admin email
+// Primary authorized bootstrap admin emails
+export const BOOTSTRAP_ADMIN_EMAILS = [
+  'rajpandya1131@gmail.com',
+  'gpl.raj@firsteconomy.com'
+];
 export const BOOTSTRAP_ADMIN_EMAIL = 'Rajpandya1131@gmail.com';
 
 // In-memory authentication state
@@ -48,8 +52,8 @@ export const authService = {
     if (!user || !user.email) return false;
     const email = user.email.toLowerCase();
 
-    // 1. Direct match with primary bootstrap admin
-    if (email === BOOTSTRAP_ADMIN_EMAIL.toLowerCase()) {
+    // 1. Direct match with authorized bootstrap admins
+    if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) {
       // Auto-bootstrap their admin record in Firestore
       try {
         if (db) {

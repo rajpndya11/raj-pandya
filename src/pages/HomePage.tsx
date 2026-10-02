@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   ArrowRight, 
@@ -23,10 +23,22 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect }) => {
-  const profile = storageService.getProfile();
-  const featuredProjects = storageService.getFeaturedProjects();
-  const experiences = storageService.getExperience();
+  const [profile, setProfile] = useState(() => storageService.getProfile());
+  const [featuredProjects, setFeaturedProjects] = useState(() => storageService.getFeaturedProjects());
+  const [experiences, setExperiences] = useState(() => storageService.getExperience());
+  const [skillsList, setSkillsList] = useState(() => storageService.getSkills());
   const primaryExp = experiences[0] || null;
+
+  useEffect(() => {
+    // Automatically subscribe to updates from Firestore or CMS edits
+    const unsubscribe = storageService.onUpdate(() => {
+      setProfile(storageService.getProfile());
+      setFeaturedProjects(storageService.getFeaturedProjects());
+      setExperiences(storageService.getExperience());
+      setSkillsList(storageService.getSkills());
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#F7F4ED] text-[#171A18]">
@@ -67,17 +79,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
               {/* Action Buttons */}
               <div className="pt-4 flex flex-wrap items-center gap-4">
                 <button
-                  onClick={() => onNavigate('/projects')}
+                  onClick={() => onNavigate(profile.primaryCtaLink || '/projects')}
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] hover:text-[#171A18] transition-all cursor-pointer shadow-sm"
                 >
-                  <span>View Projects</span>
+                  <span>{profile.primaryCtaText || 'View Projects'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => triggerResumeDownload(profile, experiences)}
+                  onClick={() => {
+                    if (profile.resumeUrl) {
+                      window.open(profile.resumeUrl, '_blank');
+                    } else {
+                      triggerResumeDownload(profile, experiences);
+                    }
+                  }}
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#DED8CC] text-[#171A18] hover:bg-[#EFE9DC] transition-all cursor-pointer shadow-sm"
                 >
-                  <span>Download Resume ↓</span>
+                  <span>{profile.secondaryCtaText || 'Download Resume ↓'}</span>
                 </button>
               </div>
             </motion.div>
@@ -168,17 +186,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
             {/* Left 40%: Editorial statement */}
             <div className="lg:col-span-5 space-y-6">
               <span className="text-xs uppercase tracking-widest text-[#B08D57] font-semibold">
-                About Me
+                {profile.aboutEyebrow || 'About Me'}
               </span>
               <h2 className="text-3xl sm:text-4xl font-serif text-[#171A18] leading-tight">
-                Turning Ideas into <br />
-                <span className="italic font-light">Meaningful Products</span>
+                {profile.aboutHeading ? (
+                  profile.aboutHeading
+                ) : (
+                  <>
+                    Turning Ideas into <br />
+                    <span className="italic font-light">Meaningful Products</span>
+                  </>
+                )}
               </h2>
               <p className="text-sm text-[#77736B] leading-relaxed">
-                I believe high-performing products sit at the exact intersection of deep customer empathy, rigorous unit economics, and relentless experimentation.
+                {profile.aboutParagraph1 || 'I believe high-performing products sit at the exact intersection of deep customer empathy, rigorous unit economics, and relentless experimentation.'}
               </p>
               <p className="text-sm text-[#77736B] leading-relaxed">
-                Whether diagnosing user churn across luxury commerce journeys or re-engineering lead acquisition funnels for 50+ real estate launches, my focus is always quantitative: measurable growth, verified user adoption, and compounding business value.
+                {profile.aboutParagraph2 || 'Whether diagnosing user churn across luxury commerce journeys or re-engineering lead acquisition funnels for 50+ real estate launches, my focus is always quantitative: measurable growth, verified user adoption, and compounding business value.'}
               </p>
               <div className="pt-2">
                 <button
@@ -191,7 +215,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
               </div>
             </div>
 
-            {/* Right 60%: What I Work On (4 Pillars) */}
+            {/* Right 60%: What I Work On (Core Disciplines / Pillars) */}
             <div className="lg:col-span-7">
               <div className="mb-6">
                 <h3 className="text-xs uppercase tracking-widest text-[#77736B] font-semibold">
@@ -200,59 +224,59 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Pillar 1 */}
-                <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-sm">
-                  <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] text-[#B08D57] flex items-center justify-center">
-                    <Layers className="w-4 h-4" />
+                {(profile.pillars && profile.pillars.length > 0 ? profile.pillars : [
+                  {
+                    id: 'p1',
+                    title: 'Product Management',
+                    category: 'Product Lifecycle',
+                    description: 'Strategy, customer discovery, roadmaps, PRD authoring, and cross-functional engineering execution.',
+                    tag: '0 to 1 & Scale'
+                  },
+                  {
+                    id: 'p2',
+                    title: 'Growth & Experimentation',
+                    category: 'Conversion Optimization',
+                    description: 'Acquisition funnels, CRO, systematic A/B testing loops, and customer onboarding optimization.',
+                    tag: 'CRO & Funnels'
+                  },
+                  {
+                    id: 'p3',
+                    title: 'Data & Analytics',
+                    category: 'Quantitative Strategy',
+                    description: 'Telemetry, SQL querying, cohort retention analysis, and translating metrics into product bets.',
+                    tag: 'SQL & Telemetry'
+                  },
+                  {
+                    id: 'p4',
+                    title: 'AI & Automation',
+                    category: 'Engineering & Workflow',
+                    description: 'GenAI systems, prompt engineering, agentic architecture, Claude Code, and n8n autonomous pipelines.',
+                    tag: 'AI Workflows'
+                  }
+                ]).map((pillar, pIdx) => (
+                  <div key={pillar.id || pIdx} className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] text-[#B08D57] flex items-center justify-center">
+                        {pIdx === 0 && <Layers className="w-4 h-4" />}
+                        {pIdx === 1 && <TrendingUp className="w-4 h-4" />}
+                        {pIdx === 2 && <Database className="w-4 h-4" />}
+                        {pIdx === 3 && <Cpu className="w-4 h-4" />}
+                        {pIdx > 3 && <Sparkles className="w-4 h-4" />}
+                      </div>
+                      {pillar.tag && (
+                        <span className="text-[10px] font-semibold tracking-wider text-[#B08D57] bg-[#EFE9DC] px-2 py-0.5 rounded-full">
+                          {pillar.tag}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-serif text-lg text-[#171A18] font-bold">
+                      {pillar.title}
+                    </h4>
+                    <p className="text-xs text-[#77736B] leading-relaxed">
+                      {pillar.description}
+                    </p>
                   </div>
-                  <h4 className="font-serif text-lg text-[#171A18] font-bold">
-                    Product Management
-                  </h4>
-                  <p className="text-xs text-[#77736B] leading-relaxed">
-                    Strategy, customer discovery, roadmaps, PRD authoring, and cross-functional engineering execution.
-                  </p>
-                </div>
-
-                {/* Pillar 2 */}
-                <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-sm">
-                  <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] text-[#B08D57] flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-serif text-lg text-[#171A18] font-bold">
-                    Growth & Experimentation
-                  </h4>
-                  <p className="text-xs text-[#77736B] leading-relaxed">
-                    Acquisition funnels, CRO, systematic A/B testing loops, and customer onboarding optimization.
-                  </p>
-                </div>
-
-                {/* Pillar 3 */}
-                <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-sm">
-                  <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] text-[#B08D57] flex items-center justify-center">
-                    <Database className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-serif text-lg text-[#171A18] font-bold">
-                    Data & Analytics
-                  </h4>
-                  <p className="text-xs text-[#77736B] leading-relaxed">
-                    Telemetry, SQL querying, cohort retention analysis, and translating metrics into product bets.
-                  </p>
-                </div>
-
-                {/* Pillar 4 */}
-                <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-sm">
-                  <div className="w-9 h-9 rounded-lg bg-[#EFE9DC] text-[#B08D57] flex items-center justify-center">
-                    <Cpu className="w-4 h-4" />
-                  </div>
-                  <h4 className="font-serif text-lg text-[#171A18] font-bold">
-                    AI & Automation
-                  </h4>
-                  <p className="text-xs text-[#77736B] leading-relaxed">
-                    GenAI systems, prompt engineering, agentic architecture, Claude Code, and n8n autonomous pipelines.
-                  </p>
-                </div>
-
+                ))}
               </div>
             </div>
 
@@ -285,47 +309,50 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            
-            {/* Group 1 */}
-            <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3">
-              <h3 className="font-serif text-base font-bold text-[#171A18]">
-                Product Strategy & Design
-              </h3>
-              <p className="text-xs text-[#77736B] leading-relaxed">
-                Product vision, roadmaps, research, JTBD, personas, wireframing, usability testing and prototyping.
-              </p>
-            </div>
-
-            {/* Group 2 */}
-            <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3">
-              <h3 className="font-serif text-base font-bold text-[#171A18]">
-                Growth & Business Strategy
-              </h3>
-              <p className="text-xs text-[#77736B] leading-relaxed">
-                Funnel optimization, CRO, retention, pricing, monetization, GTM planning and A/B experimentation.
-              </p>
-            </div>
-
-            {/* Group 3 */}
-            <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3">
-              <h3 className="font-serif text-base font-bold text-[#171A18]">
-                Data & Technical
-              </h3>
-              <p className="text-xs text-[#77736B] leading-relaxed">
-                SQL, data querying, analytics, metrics interpretation, API integrations, architecture and GitHub.
-              </p>
-            </div>
-
-            {/* Group 4 */}
-            <div className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3">
-              <h3 className="font-serif text-base font-bold text-[#171A18]">
-                AI & Workflow Automation
-              </h3>
-              <p className="text-xs text-[#77736B] leading-relaxed">
-                Prompt engineering, AI agents, Claude Code, vibe coding, workflow automation and n8n pipelines.
-              </p>
-            </div>
-
+            {(skillsList.length > 0 ? skillsList.slice(0, 4) : [
+              {
+                id: 'default-1',
+                name: 'Product Strategy & Design',
+                description: 'Product vision, roadmaps, research, JTBD, personas, wireframing, usability testing and prototyping.',
+                skills: []
+              },
+              {
+                id: 'default-2',
+                name: 'Growth & Business Strategy',
+                description: 'Funnel optimization, CRO, retention, pricing, monetization, GTM planning and A/B experimentation.',
+                skills: []
+              },
+              {
+                id: 'default-3',
+                name: 'Data & Technical',
+                description: 'SQL, data querying, analytics, metrics interpretation, API integrations, architecture and GitHub.',
+                skills: []
+              },
+              {
+                id: 'default-4',
+                name: 'AI & Workflow Automation',
+                description: 'Prompt engineering, AI agents, Claude Code, vibe coding, workflow automation and n8n pipelines.',
+                skills: []
+              }
+            ]).map((cat) => (
+              <div key={cat.id} className="p-6 rounded-xl bg-white border border-[#DED8CC] space-y-3 hover:border-[#B08D57] transition-colors shadow-xs">
+                <h3 className="font-serif text-base font-bold text-[#171A18]">
+                  {cat.name}
+                </h3>
+                <p className="text-xs text-[#77736B] leading-relaxed line-clamp-3">
+                  {cat.description}
+                </p>
+                {cat.skills && cat.skills.length > 0 && (
+                  <div className="pt-2 flex flex-wrap gap-1.5">
+                    {cat.skills.slice(0, 3).map((skill, sIdx) => (
+                      <span key={sIdx} className="text-[10px] px-2 py-0.5 rounded-md bg-[#EFE9DC] text-[#171A18] font-medium">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -375,25 +402,23 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                 </div>
 
                 {/* Primary Metric Scorecard */}
-                <div className="flex items-center gap-6">
-                  <div className="p-3 bg-[#EFE9DC] rounded-xl text-center min-w-[110px]">
-                    <div className="font-serif text-xl font-bold text-[#171A18]">₹9K → ₹3K</div>
-                    <div className="text-[10px] uppercase tracking-wider text-[#B08D57] font-semibold">CPL Reduction</div>
-                  </div>
-                  <div className="p-3 bg-[#EFE9DC] rounded-xl text-center min-w-[110px]">
-                    <div className="font-serif text-xl font-bold text-[#171A18]">8% → 24%</div>
-                    <div className="text-[10px] uppercase tracking-wider text-[#B08D57] font-semibold">Lead Conversion</div>
-                  </div>
-                  <div className="p-3 bg-[#EFE9DC] rounded-xl text-center min-w-[110px]">
-                    <div className="font-serif text-xl font-bold text-[#171A18]">50+</div>
-                    <div className="text-[10px] uppercase tracking-wider text-[#B08D57] font-semibold">Projects</div>
-                  </div>
+                <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+                  {(primaryExp.impactMetrics && primaryExp.impactMetrics.length > 0 ? primaryExp.impactMetrics : [
+                    { value: '₹9K → ₹3K', label: 'CPL Reduction' },
+                    { value: '8% → 24%', label: 'Lead Conversion' },
+                    { value: '50+', label: 'Projects' }
+                  ]).map((metric, mIdx) => (
+                    <div key={mIdx} className="p-3 bg-[#EFE9DC] rounded-xl text-center min-w-[100px] border border-[#DED8CC]">
+                      <div className="font-serif text-lg sm:text-xl font-bold text-[#171A18]">{metric.value}</div>
+                      <div className="text-[10px] uppercase tracking-wider text-[#B08D57] font-semibold">{metric.label}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <div className="pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <p className="text-xs text-[#77736B] max-w-2xl leading-relaxed">
-                  Owned end-to-end acquisition-to-conversion funnel across luxury real estate projects, reducing customer acquisition costs by 66% through systematic experimentation.
+                  {primaryExp.responsibilities?.[0] || 'Owned end-to-end acquisition-to-conversion funnel across luxury real estate projects, reducing customer acquisition costs by 66% through systematic experimentation.'}
                 </p>
                 {primaryExp.caseStudySlug && (
                   <button

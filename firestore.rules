@@ -15,6 +15,7 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == 'rajpandya1131@gmail.com' ||
         request.auth.token.email == 'Rajpandya1131@gmail.com' ||
+        request.auth.token.email == 'gpl.raj@firsteconomy.com' ||
         (request.auth.token.email_verified == true && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
       );
     }
@@ -25,8 +26,8 @@ service cloud.firestore {
 
     // Projects: Public can view published projects; Admins can view/edit everything
     match /projects/{projectId} {
-      allow get: if (resource.data.status == 'published') || isAdmin();
-      allow list: if (resource.data.status == 'published') || isAdmin();
+      allow get: if (resource.data.status in ['published', 'Published']) || isAdmin();
+      allow list: if (resource.data.status in ['published', 'Published']) || isAdmin();
       allow write: if isValidId(projectId) && isAdmin();
     }
 
@@ -40,6 +41,18 @@ service cloud.firestore {
     match /experiences/{experienceId} {
       allow read: if true;
       allow write: if isValidId(experienceId) && isAdmin();
+    }
+
+    // Skills: Public read; Admin write
+    match /skills/{skillId} {
+      allow read: if true;
+      allow write: if isValidId(skillId) && isAdmin();
+    }
+
+    // Education: Public read; Admin write
+    match /education/{educationId} {
+      allow read: if true;
+      allow write: if isValidId(educationId) && isAdmin();
     }
 
     // Media Assets: Public read; Admin write

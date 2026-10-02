@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Search, Sparkles, CheckCircle2 } from 'lucide-react';
-import { SKILL_CATEGORIES } from '../data/skillsData';
+import { storageService } from '../services/storageService';
+import { SkillCategory } from '../types';
 import { ToolIcon } from '../components/ToolIcons';
 
 export const SkillsPage: React.FC = () => {
+  const [categories, setCategories] = useState<SkillCategory[]>(() => storageService.getSkills());
+  const [profile, setProfile] = useState(() => storageService.getProfile());
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCategories = SKILL_CATEGORIES.map(cat => {
+  useEffect(() => {
+    const unsubscribe = storageService.onUpdate(() => {
+      setCategories(storageService.getSkills());
+      setProfile(storageService.getProfile());
+    });
+    return unsubscribe;
+  }, []);
+
+  const filteredCategories = categories.map(cat => {
     if (!searchQuery.trim()) return cat;
     const filtered = cat.skills.filter(s => 
       s.toLowerCase().includes(searchQuery.toLowerCase())
@@ -23,13 +34,13 @@ export const SkillsPage: React.FC = () => {
         <div className="max-w-3xl mb-12 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#DED8CC] bg-[#EFE9DC] text-xs font-semibold uppercase tracking-widest text-[#B08D57]">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Competencies & Stack</span>
+            <span>{profile.skillsPageEyebrow || 'Competencies & Stack'}</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-[#171A18]">
-            Skills & Capabilities
+            {profile.skillsPageTitle || 'Skills & Capabilities'}
           </h1>
           <p className="text-sm sm:text-base text-[#77736B] leading-relaxed font-sans">
-            A comprehensive overview of product management frameworks, quantitative experimentation methods, technical proficiencies, and AI engineering workflows accumulated across 4+ years of digital product leadership.
+            {profile.skillsPageDescription || 'A comprehensive overview of product management frameworks, quantitative experimentation methods, technical proficiencies, and AI engineering workflows accumulated across 4+ years of digital product leadership.'}
           </p>
 
           {/* Instant Search Bar */}

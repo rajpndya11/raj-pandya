@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Linkedin, MapPin } from 'lucide-react';
+import { Mail, Linkedin, MapPin, Lock } from 'lucide-react';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -123,6 +123,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </p>
           <div className="flex items-center gap-4">
             <span className="text-[11px] text-[#77736B]">Mumbai • India</span>
+            <button
+              onClick={() => onNavigate('/admin')}
+              className="text-[#3A3F3C] hover:text-[#B08D57] transition-colors p-1 rounded-sm focus:outline-none"
+              title="Admin Portal"
+              aria-label="Admin Portal"
+            >
+              <Lock className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" />
+            </button>
           </div>
         </div>
       </div>

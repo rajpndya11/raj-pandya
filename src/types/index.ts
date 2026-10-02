@@ -126,6 +126,14 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface PillarItem {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  tag: string;
+}
+
 export interface ProfileContent {
   name: string;
   eyebrow: string;
@@ -135,19 +143,49 @@ export interface ProfileContent {
   photoTagline: string;
   quote?: string;
   quoteAuthor?: string;
+  quoteAuthorRole?: string;
   resumeUrl?: string;
-  ctaText?: string;
-  ctaLink?: string;
+  primaryCtaText?: string;
+  primaryCtaLink?: string;
+  secondaryCtaText?: string;
+  secondaryCtaLink?: string;
+  // About Me section
+  aboutEyebrow?: string;
+  aboutHeading?: string;
+  aboutParagraph1?: string;
+  aboutParagraph2?: string;
+  // Key Metrics
   metrics: {
     value: string;
     label: string;
     sub?: string;
   }[];
+  // 4 Core Disciplines / Pillars
+  pillars?: PillarItem[];
+  // Contact & Meta
   email: string;
   linkedin: string;
   location: string;
+  availabilityStatus?: string;
+  // Page Headers
+  skillsPageEyebrow?: string;
+  skillsPageTitle?: string;
+  skillsPageDescription?: string;
+  experiencePageEyebrow?: string;
+  experiencePageTitle?: string;
+  experiencePageDescription?: string;
+  projectsPageEyebrow?: string;
+  projectsPageTitle?: string;
+  projectsPageDescription?: string;
   skillsOverview?: string[];
   updatedAt?: string;
+}
+
+export interface SkillCategory {
+  id: string;
+  name: string;
+  description: string;
+  skills: string[];
 }
 
 export interface ExperienceItem {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Search, ArrowRight, FolderKanban, Sparkles } from 'lucide-react';
 import { storageService } from '../services/storageService';
@@ -22,8 +22,16 @@ const CATEGORIES: ('All' | ProjectCategory)[] = [
 export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState<'All' | ProjectCategory>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [projects, setProjects] = useState(() => storageService.getPublishedProjects());
+  const [profile, setProfile] = useState(() => storageService.getProfile());
 
-  const projects = storageService.getPublishedProjects();
+  useEffect(() => {
+    const unsubscribe = storageService.onUpdate(() => {
+      setProjects(storageService.getPublishedProjects());
+      setProfile(storageService.getProfile());
+    });
+    return unsubscribe;
+  }, []);
 
   const filteredProjects = projects.filter((project) => {
     const matchesCategory = 
@@ -51,13 +59,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
         <div className="max-w-3xl mb-12 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#DED8CC] bg-[#EFE9DC] text-xs font-semibold uppercase tracking-widest text-[#B08D57]">
             <FolderKanban className="w-3.5 h-3.5" />
-            <span>Case Studies</span>
+            <span>{profile.projectsPageEyebrow || 'Case Studies'}</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-[#171A18]">
-            Featured Projects
+            {profile.projectsPageTitle || 'Featured Projects'}
           </h1>
           <p className="text-sm sm:text-base text-[#77736B] leading-relaxed font-sans">
-            Product problems I've explored, solved and studied. Spanning conversion funnels, GenAI intelligence engines, candidate search semantics, and enterprise telemetry.
+            {profile.projectsPageDescription || "Product problems I've explored, solved and studied. Spanning conversion funnels, GenAI intelligence engines, candidate search semantics, and enterprise telemetry."}
           </p>
         </div>
 
