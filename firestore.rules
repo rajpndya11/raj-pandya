@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net - default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'rajpandya1131@gmail.com' ||
+        request.auth.token.email == 'Rajpandya1131@gmail.com' ||
+        (request.auth.token.email_verified == true && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Projects: Public can view published projects; Admins can view/edit everything
+    match /projects/{projectId} {
+      allow get: if (resource.data.status == 'published') || isAdmin();
+      allow list: if (resource.data.status == 'published') || isAdmin();
+      allow write: if isValidId(projectId) && isAdmin();
+    }
+
+    // Site Content & Profile: Public read; Admin write
+    match /site_content/{contentId} {
+      allow read: if true;
+      allow write: if isValidId(contentId) && isAdmin();
+    }
+
+    // Experiences: Public read; Admin write
+    match /experiences/{experienceId} {
+      allow read: if true;
+      allow write: if isValidId(experienceId) && isAdmin();
+    }
+
+    // Media Assets: Public read; Admin write
+    match /media_assets/{assetId} {
+      allow read: if true;
+      allow write: if isValidId(assetId) && isAdmin();
+    }
+
+    // Admins registry: Admin only
+    match /admins/{adminId} {
+      allow read, write: if isValidId(adminId) && isAdmin();
+    }
+  }
+}
