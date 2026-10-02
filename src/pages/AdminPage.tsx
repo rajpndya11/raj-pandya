@@ -213,7 +213,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       timeline: '2026',
       industry: 'SaaS & Enterprise',
       team: 'Engineering, Design, Data, Sales',
-      coverImage: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+      coverImage: 'https://drive.google.com/file/d/1nYik8Fmh7gIGUGNbMb0kcXe5ysGQhpW7/view?usp=sharing,
       featured: false,
       status: 'Published',
       overview: 'Provide high-level context about the business challenge and opportunity...',
