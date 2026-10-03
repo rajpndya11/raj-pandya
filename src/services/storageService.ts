@@ -4,7 +4,7 @@ import { INITIAL_PROFILE } from '../data/initialProfile';
 import { INITIAL_EXPERIENCE, INITIAL_EDUCATION } from '../data/initialExperience';
 import { SKILL_CATEGORIES } from '../data/skillsData';
 import { db, OperationType, handleFirestoreError } from './firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
 
 const PROJECTS_KEY = 'rp_portfolio_projects';
 const PROFILE_KEY = 'rp_portfolio_profile';
@@ -13,6 +13,11 @@ const EDUCATION_KEY = 'rp_portfolio_education';
 const SKILLS_KEY = 'rp_portfolio_skills';
 const MEDIA_KEY = 'rp_portfolio_media';
 const STORAGE_EVENT = 'rp_portfolio_storage_updated';
+
+// Cross-tab broadcast channel for instantaneous sync across all open tabs
+const broadcastChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('rp_portfolio_sync_channel')
+  : null;
 
 // In-memory fallback map if localStorage is restricted
 const memoryStore = new Map<string, string>();
@@ -35,8 +40,8 @@ export const safeStorage = {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(key, value);
       }
-    } catch {
-      // Storage blocked or quota exceeded
+    } catch (e) {
+      console.warn('Storage setItem quota note:', e);
     }
     memoryStore.set(key, value);
   },
@@ -54,18 +59,64 @@ export const safeStorage = {
 };
 
 export const storageService = {
-  // Listen for storage updates across components
+  // Listen for storage updates across components, tabs, and focus changes
   onUpdate(callback: () => void): () => void {
     if (typeof window === 'undefined') return () => {};
     const handler = () => callback();
+
+    // 1. Same-tab custom event
     window.addEventListener(STORAGE_EVENT, handler);
-    return () => window.removeEventListener(STORAGE_EVENT, handler);
+
+    // 2. Native localStorage cross-tab change event
+    window.addEventListener('storage', handler);
+
+    // 3. Tab visibility & window focus (e.g. user toggles between admin tab and live site tab)
+    const focusHandler = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        callback();
+      }
+    };
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', focusHandler);
+
+    // 4. Cross-tab BroadcastChannel
+    const bcHandler = () => callback();
+    broadcastChannel?.addEventListener('message', bcHandler);
+
+    return () => {
+      window.removeEventListener(STORAGE_EVENT, handler);
+      window.removeEventListener('storage', handler);
+      window.removeEventListener('focus', handler);
+      document.removeEventListener('visibilitychange', focusHandler);
+      broadcastChannel?.removeEventListener('message', bcHandler);
+    };
   },
 
   notify() {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(STORAGE_EVENT));
+      try {
+        broadcastChannel?.postMessage({ type: 'SYNC_UPDATE', time: Date.now() });
+      } catch {
+        // BroadcastChannel notification ignored
+      }
     }
+  },
+
+  // Sanitize data recursively to remove undefined values that Firestore rejects
+  cleanPayload(data: any): any {
+    if (data === null || data === undefined) return null;
+    if (typeof data !== 'object') return data;
+    if (Array.isArray(data)) {
+      return data.map(item => this.cleanPayload(item));
+    }
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = this.cleanPayload(value);
+      }
+    }
+    return cleaned;
   },
 
   // Sync state with Firestore in background without blocking local responsiveness
@@ -73,9 +124,9 @@ export const storageService = {
     try {
       if (!db) return;
       const ref = doc(db, collectionName, id);
-      await setDoc(ref, data, { merge: true });
+      const cleaned = this.cleanPayload(data);
+      await setDoc(ref, cleaned, { merge: true });
     } catch (err) {
-      // Log context using standardized handler
       console.warn(`Firestore sync note for ${collectionName}/${id}:`, err);
     }
   },
@@ -87,6 +138,81 @@ export const storageService = {
       await deleteDoc(ref);
     } catch (err) {
       console.warn(`Firestore delete note for ${collectionName}/${id}:`, err);
+    }
+  },
+
+  // Real-time Firestore sync listener: ensures changes made on backend instantly reflect on live site
+  initRealtimeCloudSync(): () => void {
+    if (!db || typeof window === 'undefined') return () => {};
+
+    const unsubs: (() => void)[] = [];
+
+    try {
+      // 1. Profile real-time listener
+      const unsubProfile = onSnapshot(doc(db, 'site_content', 'main_profile'), (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudProfile = docSnap.data() as ProfileContent;
+          if (cloudProfile && cloudProfile.name) {
+            safeStorage.setItem(PROFILE_KEY, JSON.stringify(cloudProfile));
+            this.notify();
+          }
+        }
+      }, (err) => {
+        console.warn('Realtime cloud profile sync listener note:', err);
+      });
+      unsubs.push(unsubProfile);
+
+      // 2. Projects real-time listener
+      const unsubProjects = onSnapshot(collection(db, 'projects'), (snap) => {
+        if (!snap.empty) {
+          const list: Project[] = [];
+          snap.forEach(d => list.push(d.data() as Project));
+          if (list.length > 0) {
+            safeStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+            this.notify();
+          }
+        }
+      }, (err) => {
+        console.warn('Realtime cloud projects sync listener note:', err);
+      });
+      unsubs.push(unsubProjects);
+
+      // 3. Experiences real-time listener
+      const unsubExp = onSnapshot(collection(db, 'experiences'), (snap) => {
+        if (!snap.empty) {
+          const list: ExperienceItem[] = [];
+          snap.forEach(d => list.push(d.data() as ExperienceItem));
+          if (list.length > 0) {
+            safeStorage.setItem(EXPERIENCE_KEY, JSON.stringify(list));
+            this.notify();
+          }
+        }
+      }, (err) => {
+        console.warn('Realtime cloud experiences sync listener note:', err);
+      });
+      unsubs.push(unsubExp);
+
+      // 4. Skills real-time listener
+      const unsubSkills = onSnapshot(collection(db, 'skills'), (snap) => {
+        if (!snap.empty) {
+          const list: SkillCategory[] = [];
+          snap.forEach(d => list.push(d.data() as SkillCategory));
+          if (list.length > 0) {
+            safeStorage.setItem(SKILLS_KEY, JSON.stringify(list));
+            this.notify();
+          }
+        }
+      }, (err) => {
+        console.warn('Realtime cloud skills sync listener note:', err);
+      });
+      unsubs.push(unsubSkills);
+
+      return () => {
+        unsubs.forEach(fn => fn());
+      };
+    } catch (e) {
+      console.warn('Could not initialize real-time cloud listener:', e);
+      return () => {};
     }
   },
 
@@ -212,7 +338,15 @@ export const storageService = {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          // Ensure presentation & PRD files are populated from initial data if missing
+          const enriched = parsed.map(p => {
+            const initP = INITIAL_PROJECTS.find(ip => ip.slug === p.slug);
+            if ((!p.files || p.files.length === 0) && initP?.files) {
+              return { ...p, files: initP.files };
+            }
+            return p;
+          });
+          return enriched.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         }
       }
     } catch (e) {
@@ -249,6 +383,7 @@ export const storageService = {
     } catch (e) {
       console.warn('Could not persist projects locally', e);
     }
+    this.notify();
   },
 
   saveProject(project: Project): Project {
@@ -256,7 +391,7 @@ export const storageService = {
     const existingIndex = projects.findIndex(p => p.id === project.id);
     const updatedProject: Project = {
       ...project,
-      order: project.order ?? existingIndex >= 0 ? existingIndex : projects.length,
+      order: typeof project.order === 'number' ? project.order : (existingIndex >= 0 ? existingIndex : projects.length),
       updatedAt: new Date().toISOString().split('T')[0]
     };
 
@@ -406,6 +541,7 @@ export const storageService = {
   saveProfile(profile: ProfileContent): void {
     const updated: ProfileContent = {
       ...profile,
+      photoUrl: profile.photoUrl ? profile.photoUrl.trim() : INITIAL_PROFILE.photoUrl,
       updatedAt: new Date().toISOString()
     };
     try {

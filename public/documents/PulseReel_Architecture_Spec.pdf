@@ -1,0 +1,89 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+2 0 obj
+<< /Type /Outlines /Count 0 >>
+endobj
+3 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R] /Count 2 >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /Name /F1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /Name /F2 /BaseFont /Helvetica-Bold >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 666 >>
+stream
+BT
+/F2 16 Tf
+50 740 Td
+(PulseReel AI - Autonomous Risk Detection Engine) Tj
+/F1 11 Tf
+0 -24 Td
+(System Architecture & Low-Latency Stream Telemetry Specification) Tj
+/F1 10 Tf
+0 -30 Td
+(1. Problem: Viral disinformation outpaces human triage within the first 45 minutes.) Tj
+0 -18 Td
+(2. Objective: Detect rapid velocity spikes and apply mitigation before viral tipping points.) Tj
+0 -18 Td
+(3. Core Metric: Sub-400ms streaming edge inference with 94.2% precision.) Tj
+0 -18 Td
+(4. Intervention Strategy: Dynamic friction prompts, de-amplification, and verified human review.) Tj
+/F1 9 Tf
+0 -200 Td
+(Page 1 of 2 - PulseReel AI System Specification | Raj Pandya) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 629 >>
+stream
+BT
+/F2 16 Tf
+50 740 Td
+(Multi-Modal Inference & Propagation Telemetry) Tj
+/F1 11 Tf
+0 -24 Td
+(Real-time Vector Embedding and Acceleration Derivative Tracking) Tj
+/F1 10 Tf
+0 -30 Td
+(1. Streaming message ingestion pipeline processing 25,000 events/second.) Tj
+0 -18 Td
+(2. Dual-stage embedding: semantic vector analysis + media forensic checksums.) Tj
+0 -18 Td
+(3. Automated risk scoring dynamically regulates feed recommendation multipliers.) Tj
+0 -18 Td
+(4. Human-in-the-loop audit console providing actionable explainability heatmaps.) Tj
+/F1 9 Tf
+0 -200 Td
+(Page 2 of 2 - PulseReel AI System Specification | Raj Pandya) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000104 00000 n 
+0000000167 00000 n 
+0000000247 00000 n 
+0000000332 00000 n 
+0000000468 00000 n 
+0000001184 00000 n 
+0000001320 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1999
+%%EOF

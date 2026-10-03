@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, ArrowRight, FolderKanban, Sparkles } from 'lucide-react';
+import { Search, ArrowRight, FolderKanban, Sparkles, Presentation, FileText, BookOpen } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { ProjectCategory } from '../types';
 import { BlurImage } from '../components/BlurImage';
@@ -186,6 +186,23 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
                       </span>
                       <span className="font-serif text-sm font-bold text-[#171A18]">
                         {project.metrics[0].value}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Attached Documents / Presentations Indicator */}
+                  {((project.files && project.files.length > 0) || (project.links && project.links.some(l => ['PPT', 'PDF', 'PRD', 'Research'].includes(l.type)))) && (
+                    <div 
+                      onClick={() => onNavigate(`/projects/${project.slug}#presentation-deck`)}
+                      className="p-2.5 rounded-xl bg-[#EFE9DC]/70 hover:bg-[#EFE9DC] border border-[#DED8CC] flex items-center justify-between transition-colors cursor-pointer group/doc"
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-[#171A18]">
+                        <Presentation className="w-3.5 h-3.5 text-[#E65100]" />
+                        <span>Interactive PPT / PDF Deck</span>
+                      </div>
+                      <span className="text-[10px] text-[#B08D57] font-bold group-hover/doc:underline flex items-center gap-1">
+                        <span>Read Deck</span>
+                        <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
                   )}

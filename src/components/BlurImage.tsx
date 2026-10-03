@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ImageOff } from 'lucide-react';
+import { normalizeImageUrl } from '../utils/imageCompressor';
 
 interface BlurImageProps {
   src: string;
@@ -27,6 +28,7 @@ export const BlurImage: React.FC<BlurImageProps> = ({
   hoverZoom = false,
   priority = false,
 }) => {
+  const cleanSrc = normalizeImageUrl(src);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -34,6 +36,10 @@ export const BlurImage: React.FC<BlurImageProps> = ({
   // Sync state on src change or if image is already cached
   useEffect(() => {
     setHasError(false);
+    if (!cleanSrc) {
+      setHasError(true);
+      return;
+    }
     if (imgRef.current && imgRef.current.complete) {
       if (imgRef.current.naturalWidth > 0) {
         setIsLoaded(true);
@@ -43,23 +49,24 @@ export const BlurImage: React.FC<BlurImageProps> = ({
     } else {
       setIsLoaded(false);
     }
-  }, [src]);
+  }, [cleanSrc]);
 
   return (
     <div 
       className={`relative overflow-hidden bg-[#EFE9DC] ${aspectRatio} ${containerClassName}`}
     >
       {/* Target Image with direct display and graceful error fallback */}
-      {!hasError ? (
+      {!hasError && cleanSrc ? (
         <img
+          key={cleanSrc}
           ref={imgRef}
-          src={src}
+          src={cleanSrc}
           alt={alt}
           loading={priority ? 'eager' : loading}
           decoding={decoding}
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
-          className={`w-full h-full object-${objectFit} transition-opacity duration-300 ${
+          className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-300 ${
             isLoaded ? 'opacity-100' : 'opacity-90'
           } ${hoverZoom ? 'group-hover:scale-105 duration-500 transition-transform' : ''} ${className}`}
         />

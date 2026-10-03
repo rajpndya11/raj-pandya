@@ -1,12 +1,21 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
 // CRITICAL: The app will break without firebaseConfig.firestoreDatabaseId passed here
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    ignoreUndefinedProperties: true
+  }, firebaseConfig.firestoreDatabaseId);
+} catch {
+  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
 
 export enum OperationType {

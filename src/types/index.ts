@@ -31,9 +31,14 @@ export interface ProjectLink {
 
 export interface ProjectFile {
   id: string;
+  title?: string;
   fileName: string;
-  fileType: string;
+  fileType: 'pdf' | 'ppt' | 'pptx' | 'doc' | 'docx' | 'txt' | 'slides' | 'link' | string;
   fileUrl: string;
+  description?: string;
+  pageCount?: number;
+  slides?: string[]; // For LinkedIn carousel / multi-slide flipbook
+  textContent?: string; // For text / markdown reading
   sortOrder?: number;
 }
 

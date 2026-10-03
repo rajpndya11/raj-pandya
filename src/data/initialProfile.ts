@@ -8,7 +8,7 @@ export const INITIAL_PROFILE: ProfileContent = {
   quote: '“A great product manager has the brain of an engineer, the heart of a designer, and the speech of a diplomat.”',
   quoteAuthor: 'Deep Nishar',
   quoteAuthorRole: 'Managing Director at General Catalyst & Former VP Product at LinkedIn',
-  photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80',
+  photoUrl: '/raj_pandya_headshot.jpg',
   photoTagline: 'Better Products.\nBigger Impact.',
   primaryCtaText: 'View Projects',
   primaryCtaLink: '/projects',

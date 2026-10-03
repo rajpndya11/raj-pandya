@@ -38,11 +38,13 @@ import {
   ChevronRight,
   Menu,
   GraduationCap,
-  Mail
+  Mail,
+  Presentation
 } from 'lucide-react';
 import { authService, BOOTSTRAP_ADMIN_EMAIL } from '../services/authService';
 import { storageService } from '../services/storageService';
-import { compressImage } from '../utils/imageCompressor';
+import { compressImage, normalizeImageUrl } from '../utils/imageCompressor';
+import { DocumentViewer } from '../components/DocumentViewer';
 import { 
   Project, 
   ProfileContent, 
@@ -51,6 +53,7 @@ import {
   SkillCategory,
   PillarItem,
   ProjectLink, 
+  ProjectFile,
   LinkType, 
   ProjectCategory,
   WireframeAsset,
@@ -65,7 +68,7 @@ interface AdminPageProps {
 
 type AdminTab = 'projects' | 'content' | 'media' | 'settings';
 type ContentSubTab = 'home' | 'skills' | 'experience' | 'projects-page' | 'contact';
-type ProjectEditorTab = 'basic' | 'content' | 'wireframes' | 'links' | 'metrics' | 'blocks' | 'seo';
+type ProjectEditorTab = 'basic' | 'content' | 'wireframes' | 'links' | 'documents' | 'metrics' | 'blocks' | 'seo';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -351,6 +354,93 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     });
   };
 
+  // Document and Presentation files handling (PPT, PDF, DOC, TXT)
+  const handleAddFile = () => {
+    if (!editingProject) return;
+    const newFile: ProjectFile = {
+      id: `file-${Date.now()}`,
+      title: 'Executive Presentation Deck',
+      fileName: 'presentation-deck.pptx',
+      fileType: 'ppt',
+      fileUrl: 'https://docs.google.com/presentation',
+      description: 'Multi-slide strategic deck covering product discovery and experimentation metrics.',
+      pageCount: 8,
+      sortOrder: (editingProject.files?.length || 0) + 1
+    };
+    setEditingProject({
+      ...editingProject,
+      files: [...(editingProject.files || []), newFile]
+    });
+  };
+
+  const handleDeleteFile = (fileId: string) => {
+    if (!editingProject || !editingProject.files) return;
+    setEditingProject({
+      ...editingProject,
+      files: editingProject.files.filter(f => f.id !== fileId)
+    });
+  };
+
+  const handleUpdateFile = (fileId: string, field: keyof ProjectFile, value: any) => {
+    if (!editingProject || !editingProject.files) return;
+    setEditingProject({
+      ...editingProject,
+      files: editingProject.files.map(f => f.id === fileId ? { ...f, [field]: value } : f)
+    });
+  };
+
+  const handleUploadDocumentFile = (fileId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingProject || !editingProject.files) return;
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    let fileType: ProjectFile['fileType'] = 'pdf';
+    if (['ppt', 'pptx'].includes(extension)) fileType = 'ppt';
+    else if (['doc', 'docx'].includes(extension)) fileType = 'doc';
+    else if (['txt', 'md'].includes(extension)) fileType = 'txt';
+    else if (['pdf'].includes(extension)) fileType = 'pdf';
+
+    if (fileType === 'txt') {
+      const textReader = new FileReader();
+      textReader.onload = (ev) => {
+        const textContent = ev.target?.result as string;
+        setEditingProject(prev => {
+          if (!prev || !prev.files) return prev;
+          return {
+            ...prev,
+            files: prev.files.map(f => f.id === fileId ? {
+              ...f,
+              fileName: file.name,
+              fileType,
+              textContent,
+              title: f.title || file.name.replace(/\.[^/.]+$/, "")
+            } : f)
+          };
+        });
+      };
+      textReader.readAsText(file);
+    } else {
+      const dataReader = new FileReader();
+      dataReader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        setEditingProject(prev => {
+          if (!prev || !prev.files) return prev;
+          return {
+            ...prev,
+            files: prev.files.map(f => f.id === fileId ? {
+              ...f,
+              fileName: file.name,
+              fileType,
+              fileUrl: dataUrl,
+              title: f.title || file.name.replace(/\.[^/.]+$/, "")
+            } : f)
+          };
+        });
+      };
+      dataReader.readAsDataURL(file);
+    }
+  };
+
   // Metrics in project editor
   const handleAddMetric = () => {
     if (!editingProject) return;
@@ -474,14 +564,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     if (file) {
       try {
         setIsOptimizingPhoto(true);
-        setPhotoStatusMessage('Optimizing photo for fast web performance & cloud database...');
-        const optimized = await compressImage(file, 900, 1200, 0.85);
+        setPhotoStatusMessage('Optimizing & compressing headshot for lightning-fast web delivery...');
+        const optimized = await compressImage(file, 720, 960, 0.78);
         const updated = { ...profile, photoUrl: optimized };
         setProfile(updated);
-        // Instantly save to local cache and sync to Firestore
+        // Instantly save to local cache, broadcast across tabs, and sync to Firestore
         storageService.saveProfile(updated);
-        setPhotoStatusMessage('✓ Photo optimized & synced live to portfolio!');
-        setTimeout(() => setPhotoStatusMessage(''), 4000);
+        setPhotoStatusMessage('✓ Headshot photo saved and updated on live website!');
+        setTimeout(() => setPhotoStatusMessage(''), 5000);
       } catch (err: any) {
         setPhotoStatusMessage(`Upload error: ${err.message || 'Could not process photo'}`);
       } finally {
@@ -892,10 +982,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               { id: 'basic', label: '1. Basic Info & Setup' },
               { id: 'content', label: '2. Case Study Deep-Dive' },
               { id: 'wireframes', label: `3. Wireframes & Visuals (${editingProject.wireframes?.length || 0})` },
-              { id: 'links', label: `4. Prototype Links (${editingProject.links.length})` },
-              { id: 'metrics', label: `5. KPIs & Impact (${editingProject.metrics?.length || 0})` },
-              { id: 'blocks', label: `6. Modular Blocks (${editingProject.customBlocks?.length || 0})` },
-              { id: 'seo', label: '7. SEO & Publishing' }
+              { id: 'documents', label: `4. Documents & Decks (PPT/PDF) (${editingProject.files?.length || 0})` },
+              { id: 'links', label: `5. Prototype Links (${editingProject.links.length})` },
+              { id: 'metrics', label: `6. KPIs & Impact (${editingProject.metrics?.length || 0})` },
+              { id: 'blocks', label: `7. Modular Blocks (${editingProject.customBlocks?.length || 0})` },
+              { id: 'seo', label: '8. SEO & Publishing' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1396,7 +1487,226 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* TAB 4: PROTOTYPE & EXTERNAL LINKS */}
+          {/* TAB 4: DOCUMENTS, PRESENTATIONS & PRDS (LINKEDIN STYLE READER) */}
+          {projectEditorTab === 'documents' && (
+            <div className="space-y-6 bg-white p-6 sm:p-8 rounded-2xl border border-[#DED8CC] shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DED8CC] pb-4">
+                <div>
+                  <h3 className="font-serif text-lg font-bold">Documents, Slide Decks & PRDs (LinkedIn Style Reader)</h3>
+                  <p className="text-xs text-[#77736B]">
+                    Attach multi-page presentations (PPT/PPTX), PRD specifications (PDF/DOC), or text documents. Readers can flip through all pages like a LinkedIn carousel directly on the case study.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddFile}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Document / PPT Deck</span>
+                </button>
+              </div>
+
+              {(!editingProject.files || editingProject.files.length === 0) ? (
+                <div className="p-12 text-center border-2 border-dashed border-[#DED8CC] rounded-xl bg-[#F7F4ED] space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-[#171A18]/5 text-[#B08D57] mx-auto flex items-center justify-center">
+                    <Presentation className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-serif text-base font-bold text-[#171A18]">
+                    No Presentations or Documents Attached Yet
+                  </h4>
+                  <p className="text-xs text-[#77736B] max-w-md mx-auto">
+                    Add your PowerPoint presentation (PPT/PPTX), product requirements document (PRD/PDF), Word doc, or slide deck link. Users will be able to flip through all pages interactively.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAddFile}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] text-xs font-semibold transition-colors cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add First Presentation Deck</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {editingProject.files.map((file, fIdx) => (
+                    <div 
+                      key={file.id}
+                      className="p-5 rounded-2xl border border-[#DED8CC] bg-[#F7F4ED] space-y-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between border-b border-[#DED8CC] pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#171A18] text-[#F7F4ED] text-[10px] font-bold flex items-center justify-center">
+                            {fIdx + 1}
+                          </span>
+                          <span className="text-xs font-bold text-[#171A18]">
+                            {file.title || `Document #${fIdx + 1}`}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-[#B08D57]/20 text-[#B08D57]">
+                            {file.fileType.toUpperCase()}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="p-1.5 rounded-lg hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                          title="Remove Document"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                        <div className="sm:col-span-4">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Document / Deck Title
+                          </label>
+                          <input
+                            type="text"
+                            value={file.title || ''}
+                            onChange={(e) => handleUpdateFile(file.id, 'title', e.target.value)}
+                            placeholder="e.g. Executive Strategy Presentation Deck"
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Format / Type
+                          </label>
+                          <select
+                            value={file.fileType}
+                            onChange={(e) => handleUpdateFile(file.id, 'fileType', e.target.value)}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          >
+                            <option value="ppt">PPT / PowerPoint Presentation</option>
+                            <option value="pdf">PDF Slide Deck / Report</option>
+                            <option value="doc">DOC / Word Document</option>
+                            <option value="txt">TXT / Markdown Spec</option>
+                            <option value="slides">Google Slides Embed</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Slide / Page Count
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={file.pageCount || 5}
+                            onChange={(e) => handleUpdateFile(file.id, 'pageCount', parseInt(e.target.value) || 1)}
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Filename (for download)
+                          </label>
+                          <input
+                            type="text"
+                            value={file.fileName}
+                            onChange={(e) => handleUpdateFile(file.id, 'fileName', e.target.value)}
+                            placeholder="strategy_deck.pptx"
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-12 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B]">
+                              Document File Source (Upload File or Paste URL)
+                            </label>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Direct File Picker */}
+                              <label className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] hover:text-[#171A18] text-[11px] font-semibold transition-colors cursor-pointer shadow-xs">
+                                <Plus className="w-3 h-3" />
+                                <span>Upload File (PDF / PPT / DOC / TXT)</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.md"
+                                  className="hidden"
+                                  onChange={(e) => handleUploadDocumentFile(file.id, e)}
+                                />
+                              </label>
+
+                              {/* Quick Sample Templates */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateFile(file.id, 'fileUrl', '/documents/Godrej_Case_Study_PRD.pdf');
+                                  handleUpdateFile(file.id, 'fileType', 'pdf');
+                                  handleUpdateFile(file.id, 'fileName', 'Godrej_Case_Study_PRD.pdf');
+                                  handleUpdateFile(file.id, 'pageCount', 3);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-white hover:bg-[#EFE9DC] border border-[#DED8CC] text-[10px] font-medium text-[#77736B] hover:text-[#171A18]"
+                              >
+                                Sample Godrej PRD (PDF)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateFile(file.id, 'fileUrl', '/documents/PulseReel_Architecture_Spec.pdf');
+                                  handleUpdateFile(file.id, 'fileType', 'pdf');
+                                  handleUpdateFile(file.id, 'fileName', 'PulseReel_Architecture_Spec.pdf');
+                                  handleUpdateFile(file.id, 'pageCount', 2);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-white hover:bg-[#EFE9DC] border border-[#DED8CC] text-[10px] font-medium text-[#77736B] hover:text-[#171A18]"
+                              >
+                                Sample PulseReel Spec (PDF)
+                              </button>
+                            </div>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={file.fileUrl}
+                            onChange={(e) => handleUpdateFile(file.id, 'fileUrl', e.target.value)}
+                            placeholder="Paste Google Slides, OneDrive, Google Drive, PDF or direct PPT link (https://...)"
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                          <span className="text-[10px] text-[#77736B] block">
+                            Directly upload a local file above or paste a cloud document URL (Google Drive, Dropbox, OneDrive, PDF link).
+                          </span>
+                        </div>
+
+                        <div className="sm:col-span-12">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#77736B] mb-1">
+                            Summary Description
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={file.description || ''}
+                            onChange={(e) => handleUpdateFile(file.id, 'description', e.target.value)}
+                            placeholder="Brief summary of what this presentation or document covers..."
+                            className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Live Interactive Viewer Preview in Admin */}
+                  <div className="pt-4 border-t border-[#DED8CC] space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#171A18] uppercase tracking-wider">
+                      <Presentation className="w-4 h-4 text-[#B08D57]" />
+                      <span>Live LinkedIn-Style Reader Preview for this Project</span>
+                    </div>
+                    <DocumentViewer
+                      files={editingProject.files}
+                      links={editingProject.links}
+                      projectTitle={editingProject.title}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: PROTOTYPE & EXTERNAL LINKS */}
           {projectEditorTab === 'links' && (
             <div className="space-y-6 bg-white p-6 sm:p-8 rounded-2xl border border-[#DED8CC] shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DED8CC] pb-4">
@@ -2585,29 +2895,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         Upload your personal headshot photo. Photos from your phone/camera are automatically optimized and scaled so they never exceed browser storage limits and load in milliseconds on the live site.
                       </p>
 
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Paste image URL (https://...)"
-                          value={profile.photoUrl}
-                          onChange={(e) => {
-                            const updated = { ...profile, photoUrl: e.target.value };
-                            setProfile(updated);
-                            storageService.saveProfile(updated);
-                          }}
-                          className="flex-1 p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-                        />
-                        <label className="px-4 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm whitespace-nowrap">
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>{isOptimizingPhoto ? 'Optimizing...' : 'Upload Photo'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={isOptimizingPhoto}
-                            className="hidden"
-                            onChange={handleProfilePhotoUpload}
-                          />
+                      <div className="space-y-2">
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B]">
+                          Photo Image Source (Upload or URL)
                         </label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            placeholder="Paste image URL (https://..., Google Drive, Unsplash, Dropbox)"
+                            value={profile.photoUrl}
+                            onChange={(e) => {
+                              const normalized = normalizeImageUrl(e.target.value);
+                              const updated = { ...profile, photoUrl: normalized };
+                              setProfile(updated);
+                              storageService.saveProfile(updated);
+                              setPhotoStatusMessage('✓ Photo URL updated and synced live!');
+                              setTimeout(() => setPhotoStatusMessage(''), 4000);
+                            }}
+                            className="flex-1 p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                          />
+                          <label className="px-4 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-sm whitespace-nowrap">
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>{isOptimizingPhoto ? 'Optimizing...' : 'Upload Photo'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={isOptimizingPhoto}
+                              className="hidden"
+                              onChange={handleProfilePhotoUpload}
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       {photoStatusMessage && (
@@ -2636,14 +2954,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <div className="flex flex-col items-center justify-center p-4 bg-[#171A18] rounded-xl border border-[#2A2E2C]">
                       <div className="relative">
                         <img
-                          src={profile.photoUrl}
+                          src={normalizeImageUrl(profile.photoUrl) || '/raj_pandya_headshot.jpg'}
                           alt={profile.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/raj_pandya_headshot.jpg';
+                          }}
                           className="w-40 aspect-[4/5] object-cover rounded-lg shadow-xl border border-[#B08D57]/60"
                         />
                         <div className="absolute bottom-2 left-2 right-2 p-1.5 rounded bg-black/80 backdrop-blur-xs text-[10px] text-[#F7F4ED] font-medium text-center truncate">
                           Live Homepage Preview
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('/')}
+                        className="mt-3 inline-flex items-center gap-1.5 text-xs text-[#B08D57] hover:text-[#F7F4ED] transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View on Live Website →</span>
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -39,6 +39,28 @@ export const INITIAL_PROJECTS: Project[] = [
       { id: 'l4', type: 'PRD', label: 'Detailed Product Requirements Doc', url: 'https://notion.so' },
       { id: 'l5', type: 'Live Website', label: 'Godrej Properties Official Portal', url: 'https://www.godrejproperties.com' }
     ],
+    files: [
+      {
+        id: 'f-godrej-prd',
+        title: 'Product Requirements Specification (PRD)',
+        fileName: 'Godrej_MicroApp_PRD_Spec.pdf',
+        fileType: 'pdf',
+        fileUrl: '/documents/Godrej_Case_Study_PRD.pdf',
+        description: 'Full engineering & UX specification detailing component schemas, CRM webhook triggers, and OTP verification flow.',
+        pageCount: 3,
+        sortOrder: 1
+      },
+      {
+        id: 'f-godrej-deck',
+        title: 'Executive Pitch & Strategy Deck',
+        fileName: 'Godrej_Funnel_Strategy_Deck.pptx',
+        fileType: 'ppt',
+        fileUrl: 'https://docs.google.com/presentation',
+        description: 'Comprehensive 5-slide executive presentation breaking down progressive disclosure, intent qualification, and -66% CPL optimization.',
+        pageCount: 5,
+        sortOrder: 2
+      }
+    ],
     createdAt: '2025-10-15',
     updatedAt: '2026-03-10'
   },
@@ -78,6 +100,28 @@ export const INITIAL_PROJECTS: Project[] = [
       { id: 'l2', type: 'Figma', label: 'Trust & Safety Cockpit UI Designs', url: 'https://figma.com' },
       { id: 'l3', type: 'Prototype', label: 'Interactive Rule Engine Demo', url: 'https://prototype.io' },
       { id: 'l4', type: 'GitHub', label: 'Repository & Algorithm Schemas', url: 'https://github.com' }
+    ],
+    files: [
+      {
+        id: 'f-pulsereel-spec',
+        title: 'PulseReel AI System Architecture Spec',
+        fileName: 'PulseReel_Architecture_Spec.pdf',
+        fileType: 'pdf',
+        fileUrl: '/documents/PulseReel_Architecture_Spec.pdf',
+        description: 'Detailed stream processing architecture, low-latency scoring pipeline, and trust & safety moderator cockpit spec.',
+        pageCount: 2,
+        sortOrder: 1
+      },
+      {
+        id: 'f-pulsereel-deck',
+        title: 'Executive AI Strategy Presentation Deck',
+        fileName: 'PulseReel_Strategy_Deck.pptx',
+        fileType: 'ppt',
+        fileUrl: 'https://docs.google.com/presentation',
+        description: 'Multi-slide strategic deck covering propagation velocity curves, multi-modal classifiers, and automated friction intervention.',
+        pageCount: 5,
+        sortOrder: 2
+      }
     ],
     createdAt: '2025-08-20',
     updatedAt: '2026-02-14'

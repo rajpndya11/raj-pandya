@@ -25,6 +25,7 @@ import {
 import { storageService } from '../services/storageService';
 import { Project, ProjectLink, WireframeAsset, CustomBlock } from '../types';
 import { BlurImage } from '../components/BlurImage';
+import { DocumentViewer } from '../components/DocumentViewer';
 
 interface ProjectDetailPageProps {
   slug: string;
@@ -37,11 +38,18 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ slug, onNa
   const [selectedWireframe, setSelectedWireframe] = useState<WireframeAsset | null>(null);
 
   useEffect(() => {
-    const found = storageService.getProjectBySlug(slug);
-    if (found) {
-      setProject(found);
-      window.scrollTo(0, 0);
-    }
+    const updateProject = () => {
+      const found = storageService.getProjectBySlug(slug);
+      if (found) {
+        setProject(found);
+      }
+    };
+
+    updateProject();
+    window.scrollTo(0, 0);
+
+    const unsubscribe = storageService.onUpdate(updateProject);
+    return unsubscribe;
   }, [slug]);
 
   if (!project) {
@@ -211,6 +219,15 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ slug, onNa
             </div>
           </div>
         )}
+
+        {/* Interactive LinkedIn-Style Slide Deck & Document Viewer */}
+        <div id="presentation-deck" className="mb-14 scroll-mt-28">
+          <DocumentViewer
+            files={project.files}
+            links={project.links}
+            projectTitle={project.title}
+          />
+        </div>
 
         {/* Hero Cover Image */}
         <div className="rounded-2xl overflow-hidden shadow-xl border border-[#DED8CC] mb-16 bg-[#171A18]">

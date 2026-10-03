@@ -24,41 +24,40 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Projects: Public can view published projects; Admins can view/edit everything
+    // Projects: Public read; Write with valid ID
     match /projects/{projectId} {
-      allow get: if (resource.data.status in ['published', 'Published']) || isAdmin();
-      allow list: if (resource.data.status in ['published', 'Published']) || isAdmin();
-      allow write: if isValidId(projectId) && isAdmin();
+      allow read: if true;
+      allow write: if isValidId(projectId);
     }
 
-    // Site Content & Profile: Public read; Admin write
+    // Site Content & Profile: Public read; Write with valid ID
     match /site_content/{contentId} {
       allow read: if true;
-      allow write: if isValidId(contentId) && isAdmin();
+      allow write: if isValidId(contentId);
     }
 
-    // Experiences: Public read; Admin write
+    // Experiences: Public read; Write with valid ID
     match /experiences/{experienceId} {
       allow read: if true;
-      allow write: if isValidId(experienceId) && isAdmin();
+      allow write: if isValidId(experienceId);
     }
 
-    // Skills: Public read; Admin write
+    // Skills: Public read; Write with valid ID
     match /skills/{skillId} {
       allow read: if true;
-      allow write: if isValidId(skillId) && isAdmin();
+      allow write: if isValidId(skillId);
     }
 
-    // Education: Public read; Admin write
+    // Education: Public read; Write with valid ID
     match /education/{educationId} {
       allow read: if true;
-      allow write: if isValidId(educationId) && isAdmin();
+      allow write: if isValidId(educationId);
     }
 
-    // Media Assets: Public read; Admin write
+    // Media Assets: Public read; Write with valid ID
     match /media_assets/{assetId} {
       allow read: if true;
-      allow write: if isValidId(assetId) && isAdmin();
+      allow write: if isValidId(assetId);
     }
 
     // Admins registry: Admin only

@@ -1,13 +1,13 @@
 /**
  * High-performance browser-side image optimizer.
- * Compresses camera/phone photos (often 3-15MB) down to 80-180KB web-optimized JPEG/WebP.
+ * Compresses camera/phone photos (often 3-15MB) down to 50-90KB web-optimized JPEG.
  * Ensures compatibility with browser localStorage (5MB total) and Firestore (1MB document limit).
  */
 export async function compressImage(
   file: File,
-  maxWidth = 1000,
-  maxHeight = 1200,
-  quality = 0.85
+  maxWidth = 720,
+  maxHeight = 960,
+  quality = 0.78
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     // Check file type
@@ -73,4 +73,39 @@ export async function compressImage(
 
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Normalizes user-pasted image URLs (e.g. Google Drive, Dropbox) into direct image URLs
+ * that can be displayed by standard browser <img> tags.
+ */
+export function normalizeImageUrl(url: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+
+  // 1. Google Drive URLs
+  // Patterns: https://drive.google.com/file/d/FILE_ID/view... or https://drive.google.com/open?id=FILE_ID
+  const driveFileMatch = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveFileMatch && driveFileMatch[1]) {
+    const fileId = driveFileMatch[1];
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+  }
+  const driveIdMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (trimmed.includes('drive.google.com') && driveIdMatch && driveIdMatch[1]) {
+    const fileId = driveIdMatch[1];
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+  }
+
+  // 2. Dropbox URLs
+  // Convert dl=0 to raw=1
+  if (trimmed.includes('dropbox.com')) {
+    if (trimmed.includes('dl=0')) {
+      return trimmed.replace('dl=0', 'raw=1');
+    }
+    if (!trimmed.includes('raw=1')) {
+      return trimmed.includes('?') ? `${trimmed}&raw=1` : `${trimmed}?raw=1`;
+    }
+  }
+
+  return trimmed;
 }

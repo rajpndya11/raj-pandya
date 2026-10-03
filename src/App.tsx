@@ -100,6 +100,8 @@ export default function App() {
   useEffect(() => {
     // Sync cloud state (profile photo, copy, projects) from Firestore on load
     storageService.loadFromCloud();
+    // Subscribe to real-time cloud updates (e.g. profile photo changes reflected instantly)
+    const unsubscribeCloud = storageService.initRealtimeCloudSync();
 
     const handleLocationChange = () => {
       const hash = window.location.hash;
@@ -134,6 +136,7 @@ export default function App() {
     window.addEventListener('hashchange', handleLocationChange);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      unsubscribeCloud();
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
       window.removeEventListener('keydown', handleKeyDown);

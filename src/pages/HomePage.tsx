@@ -115,7 +115,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                 {/* Studio Portrait Container */}
                 <div className="relative rounded-xl overflow-hidden bg-[#171A18] shadow-xl border border-[#DED8CC]">
                   <BlurImage
-                    src={profile.photoUrl}
+                    src={profile.photoUrl || '/raj_pandya_headshot.jpg'}
                     alt={profile.name}
                     aspectRatio="aspect-[4/5]"
                     priority
