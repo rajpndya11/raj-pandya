@@ -370,7 +370,14 @@ export const storageService = {
   },
 
   getProjectBySlug(slug: string): Project | undefined {
-    return this.getProjects().find(p => p.slug === slug);
+    if (!slug) return undefined;
+    const clean = decodeURIComponent(slug).trim().toLowerCase();
+    const projects = this.getProjects();
+    return projects.find(p => {
+      const pSlug = (p.slug || '').toLowerCase().trim();
+      const pId = (p.id || '').toLowerCase().trim();
+      return pSlug === clean || pId === clean || (clean.length > 5 && (pSlug.startsWith(clean) || clean.startsWith(pSlug)));
+    });
   },
 
   getProjectById(id: string): Project | undefined {

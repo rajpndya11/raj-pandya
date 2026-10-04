@@ -41,6 +41,33 @@ interface DocumentViewerProps {
   defaultOpenIndex?: number;
 }
 
+// Internal safe error boundary to prevent any PDF fetch/parse issue from bubbling up
+interface SafePdfBoundaryProps {
+  children: React.ReactNode;
+  fallback: React.ReactNode;
+}
+interface SafePdfBoundaryState {
+  hasError: boolean;
+}
+class SafePdfBoundary extends React.Component<SafePdfBoundaryProps, SafePdfBoundaryState> {
+  constructor(props: SafePdfBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error) {
+    console.warn('PDF rendering caught error safely:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   files = [],
   links = [],
@@ -52,14 +79,19 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const docLinks: ProjectFile[] = useMemo(() => {
     return links
       .filter(l => ['PPT', 'PDF', 'PRD', 'Research'].includes(l.type))
-      .map(l => ({
-        id: `link-${l.id}`,
-        title: l.label,
-        fileName: `${l.label}.${l.type.toLowerCase() === 'ppt' ? 'pptx' : 'pdf'}`,
-        fileType: l.type.toLowerCase(),
-        fileUrl: l.url,
-        description: l.notes || `Interactive ${l.type} case study document for ${projectTitle}`
-      }));
+      .map(l => {
+        const urlLower = (l.url || '').toLowerCase();
+        const isPdfFile = urlLower.endsWith('.pdf') || urlLower.startsWith('data:application/pdf') || (urlLower.startsWith('/') && urlLower.includes('.pdf'));
+        const isPptFile = l.type === 'PPT' || urlLower.endsWith('.ppt') || urlLower.endsWith('.pptx');
+        return {
+          id: `link-${l.id}`,
+          title: l.label,
+          fileName: isPdfFile ? `${l.label}.pdf` : (isPptFile ? `${l.label}.pptx` : l.label),
+          fileType: isPdfFile ? 'pdf' : (isPptFile ? 'ppt' : l.type.toLowerCase()),
+          fileUrl: l.url,
+          description: l.notes || `Interactive ${l.type} case study document for ${projectTitle}`
+        };
+      });
   }, [links, projectTitle]);
 
   const allDocuments: ProjectFile[] = useMemo(() => {
@@ -81,18 +113,27 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   const activeDoc = allDocuments[selectedIndex] || allDocuments[0] || null;
 
-  // Determine if active document is a PDF
+  // Determine if active document is an actual embeddable PDF (never pass arbitrary external websites like notion.so to react-pdf)
   const isPdf = useMemo(() => {
-    if (!activeDoc) return false;
-    const lowerType = (activeDoc.fileType || '').toLowerCase();
-    const lowerUrl = (activeDoc.fileUrl || '').toLowerCase();
-    const lowerName = (activeDoc.fileName || '').toLowerCase();
-    return (
-      lowerType === 'pdf' ||
-      lowerUrl.includes('.pdf') ||
-      lowerUrl.startsWith('data:application/pdf') ||
-      lowerName.endsWith('.pdf')
-    );
+    if (!activeDoc || !activeDoc.fileUrl) return false;
+    const url = activeDoc.fileUrl.trim();
+    if (url.startsWith('data:application/pdf')) return true;
+    if (url.startsWith('blob:')) return true;
+    if (url.startsWith('/') && url.toLowerCase().includes('.pdf')) return true;
+    
+    const lower = url.toLowerCase();
+    if (
+      lower.endsWith('.pdf') &&
+      !lower.includes('notion.so') &&
+      !lower.includes('figma.com') &&
+      !lower.includes('drive.google.com') &&
+      !lower.includes('docs.google.com') &&
+      !lower.includes('github.com') &&
+      !lower.includes('youtube.com')
+    ) {
+      return true;
+    }
+    return false;
   }, [activeDoc]);
 
   // Measure container width for responsive PDF rendering
@@ -406,89 +447,162 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             
             {/* REAL PDF VIEWER WITH REACT-PDF */}
             {isPdf && activeDoc.fileUrl && !pdfLoadError ? (
-              <div className="w-full flex flex-col items-center justify-center">
-                
-                {/* PDF Loading Indicator */}
-                {isPdfLoading && (
-                  <div className="py-16 flex flex-col items-center gap-3 text-[#A6A095]">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
-                    <span className="text-xs">Rendering PDF pages with react-pdf...</span>
-                  </div>
-                )}
-
-                <Document
-                  file={activeDoc.fileUrl}
-                  onLoadSuccess={onPdfDocumentLoadSuccess}
-                  onLoadError={onPdfDocumentLoadError}
-                  loading={
-                    <div className="py-16 flex flex-col items-center gap-3 text-[#A6A095]">
-                      <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
-                      <span className="text-xs">Loading PDF document...</span>
+              <SafePdfBoundary
+                fallback={
+                  <div className="w-full flex flex-col items-center justify-center space-y-4">
+                    <div className="px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>Direct PDF canvas preview restricted. Displaying executive slide breakdown below.</span>
                     </div>
-                  }
-                  className="flex flex-col items-center"
-                >
-                  {/* MODE A: CONTINUOUS SCROLL OF ALL PAGES */}
-                  {viewMode === 'scroll' && numPdfPages ? (
-                    <div className="w-full max-h-[680px] overflow-y-auto px-2 sm:px-6 py-4 space-y-6 scrollbar-thin">
-                      {Array.from(new Array(numPdfPages), (_, index) => (
-                        <div 
-                          key={`pdf_page_${index + 1}`}
-                          className="flex flex-col items-center relative group"
-                        >
-                          <div className="relative rounded-xl overflow-hidden shadow-2xl border border-[#3A403C] bg-white">
-                            <div className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-md bg-[#171A18]/80 text-[#F7F4ED] text-[10px] font-mono border border-white/20">
-                              Page {index + 1} of {numPdfPages}
-                            </div>
-                            <Page
-                              pageNumber={index + 1}
-                              width={calculatedPdfWidth}
-                              renderTextLayer={true}
-                              renderAnnotationLayer={true}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    /* MODE B: LINKEDIN SLIDE-BY-SLIDE CAROUSEL MODE */
-                    <div className="relative w-full flex items-center justify-center">
-                      {/* Prev Slide Arrow */}
+                    {/* Render slide canvas fallback */}
+                    <div className="relative w-full flex items-center justify-center select-none">
                       <button
                         type="button"
                         disabled={currentSlide === 0}
                         onClick={() => setCurrentSlide(prev => Math.max(prev - 1, 0))}
                         className="absolute left-2 sm:left-4 z-20 w-10 h-10 rounded-full bg-black/75 hover:bg-[#B08D57] hover:text-[#171A18] border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-md cursor-pointer disabled:opacity-20 disabled:pointer-events-none shadow-xl"
-                        title="Previous Page (←)"
                       >
                         <ChevronLeft className="w-5 h-5" />
                       </button>
-
-                      {/* Next Slide Arrow */}
                       <button
                         type="button"
-                        disabled={numPdfPages !== null && currentSlide >= numPdfPages - 1}
-                        onClick={() => setCurrentSlide(prev => Math.min(prev + 1, (numPdfPages || 1) - 1))}
+                        disabled={currentSlide === totalDisplayPages - 1}
+                        onClick={() => setCurrentSlide(prev => Math.min(prev + 1, totalDisplayPages - 1))}
                         className="absolute right-2 sm:right-4 z-20 w-10 h-10 rounded-full bg-black/75 hover:bg-[#B08D57] hover:text-[#171A18] border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-md cursor-pointer disabled:opacity-20 disabled:pointer-events-none shadow-xl"
-                        title="Next Page (→)"
                       >
                         <ChevronRight className="w-5 h-5" />
                       </button>
-
-                      {/* Single PDF Slide Frame */}
-                      <div className="rounded-xl overflow-hidden shadow-2xl border border-[#3A403C] bg-white transition-transform duration-150">
-                        <Page
-                          pageNumber={currentSlide + 1}
-                          width={calculatedPdfWidth}
-                          renderTextLayer={true}
-                          renderAnnotationLayer={true}
-                        />
+                      <div 
+                        style={{ transform: `scale(${zoomLevel})` }}
+                        className="w-full max-w-3xl aspect-[16/10] rounded-xl shadow-2xl overflow-hidden border border-[#3A403C] transition-transform duration-200 bg-[#171A18] flex flex-col justify-between p-6 sm:p-10 relative"
+                      >
+                        {activeSlideData && (
+                          <>
+                            <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-4">
+                              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B08D57]/20 border border-[#B08D57]/40 text-[#B08D57] text-[10px] font-bold uppercase tracking-wider">
+                                <span>{activeSlideData.eyebrow}</span>
+                              </div>
+                              <div className="text-[11px] text-[#A6A095] font-mono">{projectTitle}</div>
+                            </div>
+                            <div className="relative z-10 space-y-4 my-auto">
+                              <h2 className="font-serif text-2xl sm:text-3xl md:text-4xl text-[#F7F4ED] font-bold leading-tight">
+                                {activeSlideData.title}
+                              </h2>
+                              <div className="text-sm sm:text-base text-[#B08D57] font-semibold">
+                                {activeSlideData.subtitle}
+                              </div>
+                              <p className="text-xs sm:text-sm text-[#D5CEBF] leading-relaxed max-w-2xl font-sans">
+                                {activeSlideData.body}
+                              </p>
+                              {activeSlideData.tags && (
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  {activeSlideData.tags.map((tag: string, tIdx: number) => (
+                                    <span key={tIdx} className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-medium text-[#F7F4ED]">
+                                      ✓ {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-4 text-[10px] text-[#77736B]">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#F7F4ED]">Raj Pandya</span>
+                                <span>•</span>
+                                <span>Product Management Case Study</span>
+                              </div>
+                              <div className="font-mono text-[#B08D57]">{currentSlide + 1} / {totalDisplayPages}</div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
+                  </div>
+                }
+              >
+                <div className="w-full flex flex-col items-center justify-center">
+                  
+                  {/* PDF Loading Indicator */}
+                  {isPdfLoading && (
+                    <div className="py-16 flex flex-col items-center gap-3 text-[#A6A095]">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
+                      <span className="text-xs">Rendering PDF pages with react-pdf...</span>
+                    </div>
                   )}
-                </Document>
 
-              </div>
+                  <Document
+                    file={activeDoc.fileUrl}
+                    onLoadSuccess={onPdfDocumentLoadSuccess}
+                    onLoadError={onPdfDocumentLoadError}
+                    loading={
+                      <div className="py-16 flex flex-col items-center gap-3 text-[#A6A095]">
+                        <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
+                        <span className="text-xs">Loading PDF document...</span>
+                      </div>
+                    }
+                    className="flex flex-col items-center"
+                  >
+                    {/* MODE A: CONTINUOUS SCROLL OF ALL PAGES */}
+                    {viewMode === 'scroll' && numPdfPages ? (
+                      <div className="w-full max-h-[680px] overflow-y-auto px-2 sm:px-6 py-4 space-y-6 scrollbar-thin">
+                        {Array.from(new Array(numPdfPages), (_, index) => (
+                          <div 
+                            key={`pdf_page_${index + 1}`}
+                            className="flex flex-col items-center relative group"
+                          >
+                            <div className="relative rounded-xl overflow-hidden shadow-2xl border border-[#3A403C] bg-white">
+                              <div className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-md bg-[#171A18]/80 text-[#F7F4ED] text-[10px] font-mono border border-white/20">
+                                Page {index + 1} of {numPdfPages}
+                              </div>
+                              <Page
+                                pageNumber={index + 1}
+                                width={calculatedPdfWidth}
+                                renderTextLayer={true}
+                                renderAnnotationLayer={true}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* MODE B: LINKEDIN SLIDE-BY-SLIDE CAROUSEL MODE */
+                      <div className="relative w-full flex items-center justify-center">
+                        {/* Prev Slide Arrow */}
+                        <button
+                          type="button"
+                          disabled={currentSlide === 0}
+                          onClick={() => setCurrentSlide(prev => Math.max(prev - 1, 0))}
+                          className="absolute left-2 sm:left-4 z-20 w-10 h-10 rounded-full bg-black/75 hover:bg-[#B08D57] hover:text-[#171A18] border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-md cursor-pointer disabled:opacity-20 disabled:pointer-events-none shadow-xl"
+                          title="Previous Page (←)"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+
+                        {/* Next Slide Arrow */}
+                        <button
+                          type="button"
+                          disabled={numPdfPages !== null && currentSlide >= numPdfPages - 1}
+                          onClick={() => setCurrentSlide(prev => Math.min(prev + 1, (numPdfPages || 1) - 1))}
+                          className="absolute right-2 sm:right-4 z-20 w-10 h-10 rounded-full bg-black/75 hover:bg-[#B08D57] hover:text-[#171A18] border border-white/20 flex items-center justify-center text-white transition-all backdrop-blur-md cursor-pointer disabled:opacity-20 disabled:pointer-events-none shadow-xl"
+                          title="Next Page (→)"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+
+                        {/* Single PDF Slide Frame */}
+                        <div className="rounded-xl overflow-hidden shadow-2xl border border-[#3A403C] bg-white transition-transform duration-150">
+                          <Page
+                            pageNumber={currentSlide + 1}
+                            width={calculatedPdfWidth}
+                            renderTextLayer={true}
+                            renderAnnotationLayer={true}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </Document>
+
+                </div>
+              </SafePdfBoundary>
             ) : activeDoc.textContent ? (
               /* TEXT / MARKDOWN READER MODE */
               <div className="w-full max-w-3xl p-6 sm:p-8 bg-[#171A18] border border-[#2A2E2C] rounded-xl shadow-xl text-left space-y-4">

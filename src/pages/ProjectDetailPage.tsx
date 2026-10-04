@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -33,39 +33,124 @@ interface ProjectDetailPageProps {
 }
 
 export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ slug, onNavigate }) => {
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<Project | null>(() => storageService.getProjectBySlug(slug) || null);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !storageService.getProjectBySlug(slug));
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [selectedWireframe, setSelectedWireframe] = useState<WireframeAsset | null>(null);
+  const allProjects = useMemo(() => storageService.getPublishedProjects(), []);
 
   useEffect(() => {
-    const updateProject = () => {
+    let isMounted = true;
+
+    const resolveProject = async () => {
       const found = storageService.getProjectBySlug(slug);
       if (found) {
-        setProject(found);
+        if (isMounted) {
+          setProject(found);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // If not immediately found in local memory, pull from cloud
+      if (isMounted) setIsLoading(true);
+      try {
+        await storageService.loadFromCloud();
+        const cloudFound = storageService.getProjectBySlug(slug);
+        if (isMounted) {
+          if (cloudFound) {
+            setProject(cloudFound);
+          }
+          setIsLoading(false);
+        }
+      } catch {
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    updateProject();
+    resolveProject();
     window.scrollTo(0, 0);
 
-    const unsubscribe = storageService.onUpdate(updateProject);
-    return unsubscribe;
+    const unsubscribe = storageService.onUpdate(() => {
+      const updated = storageService.getProjectBySlug(slug);
+      if (updated && isMounted) {
+        setProject(updated);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [slug]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-10 h-10 border-2 border-[#B08D57] border-t-transparent rounded-full animate-spin mb-4" />
+        <h2 className="font-serif text-xl font-bold text-[#171A18]">Loading Case Study</h2>
+        <p className="text-xs text-[#77736B] mt-1">Retrieving product metrics, research, and artifacts...</p>
+      </div>
+    );
+  }
 
   if (!project) {
     return (
-      <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] py-24 px-4 text-center">
-        <h1 className="font-serif text-3xl mb-4">Case Study Not Found</h1>
-        <p className="text-xs text-[#77736B] mb-8">
-          The requested project slug "{slug}" does not exist or may have been unlisted.
-        </p>
-        <button
-          onClick={() => onNavigate('/projects')}
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57]"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Projects</span>
-        </button>
+      <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] py-20 px-4">
+        <div className="max-w-3xl mx-auto text-center space-y-6">
+          <div className="w-12 h-12 rounded-full bg-[#171A18]/5 text-[#B08D57] mx-auto flex items-center justify-center">
+            <Layers className="w-6 h-6" />
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl text-[#171A18] font-bold">Case Study Not Found</h1>
+          <p className="text-xs sm:text-sm text-[#77736B] max-w-lg mx-auto">
+            The requested case study slug <code className="px-2 py-0.5 rounded bg-black/5 font-mono text-[#B08D57]">"{slug}"</code> was not found or is currently saved in draft mode.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => onNavigate('/projects')}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] hover:text-[#171A18] transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to All Projects</span>
+            </button>
+            <button
+              onClick={() => onNavigate('/admin')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#DED8CC] bg-white hover:bg-[#EFE9DC] text-[#171A18] transition-colors cursor-pointer"
+            >
+              <span>Open CMS Admin</span>
+            </button>
+          </div>
+
+          {/* Quick links to available case studies */}
+          {allProjects.length > 0 && (
+            <div className="pt-10 border-t border-[#DED8CC] text-left space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#77736B]">
+                Available Published Case Studies ({allProjects.length})
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {allProjects.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => onNavigate(`/projects/${p.slug}`)}
+                    className="p-4 rounded-xl bg-white border border-[#DED8CC] hover:border-[#B08D57] transition-all cursor-pointer group shadow-xs"
+                  >
+                    <div className="text-[10px] uppercase font-bold text-[#B08D57] tracking-wider mb-1">
+                      {p.category} · {p.industry}
+                    </div>
+                    <h4 className="font-serif text-base font-bold text-[#171A18] group-hover:text-[#B08D57] transition-colors line-clamp-1">
+                      {p.title}
+                    </h4>
+                    <p className="text-xs text-[#77736B] line-clamp-2 mt-1">
+                      {p.shortDescription}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

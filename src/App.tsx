@@ -98,6 +98,20 @@ export default function App() {
   const [isConnectOpen, setIsConnectOpen] = useState(false);
 
   useEffect(() => {
+    // Initialize theme from storage
+    try {
+      const savedTheme = localStorage.getItem('rp_portfolio_theme');
+      if (savedTheme === 'midnight') {
+        document.body.classList.add('theme-midnight');
+        document.documentElement.classList.add('dark');
+      } else {
+        document.body.classList.remove('theme-midnight');
+        document.documentElement.classList.remove('dark');
+      }
+    } catch {
+      // Storage access blocked
+    }
+
     // Sync cloud state (profile photo, copy, projects) from Firestore on load
     storageService.loadFromCloud();
     // Subscribe to real-time cloud updates (e.g. profile photo changes reflected instantly)
@@ -180,7 +194,12 @@ export default function App() {
     }
 
     if (currentPath.startsWith('/projects/')) {
-      const slug = currentPath.replace('/projects/', '').split('/')[0].split('?')[0];
+      const rawSlug = currentPath
+        .replace('/projects/', '')
+        .split('/')[0]
+        .split('?')[0]
+        .split('#')[0];
+      const slug = decodeURIComponent(rawSlug).trim();
       return <ProjectDetailPage slug={slug} onNavigate={navigate} />;
     }
 

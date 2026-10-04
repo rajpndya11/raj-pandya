@@ -245,6 +245,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0]
     };
+    // Persist immediately so the slug route /projects/new-case-study-... is active without 404
+    storageService.saveProject(newProj);
+    setProjects(storageService.getProjects());
     setEditingProject(newProj);
     setIsCreatingNew(true);
     setProjectEditorTab('basic');

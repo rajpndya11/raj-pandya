@@ -19,12 +19,83 @@
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
     overflow-x: hidden;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   h1, h2, h3, .font-editorial {
     font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
     letter-spacing: -0.015em;
   }
+}
+
+/* Midnight (Dark) Theme Styling via Tailwind CSS body class toggling */
+body.theme-midnight {
+  --bg-ivory: #0E1110;
+  --bg-cream: #171B19;
+  --text-charcoal: #F7F4ED;
+  --gold-primary: #D4AF37;
+  --gold-light: #E0C068;
+  --border-warm: #262C29;
+  --text-muted: #A6A095;
+  background-color: #0E1110 !important;
+  color: #F7F4ED !important;
+}
+
+body.theme-midnight .bg-\[\#F7F4ED\] {
+  background-color: #0E1110 !important;
+}
+
+body.theme-midnight .bg-\[\#EFE9DC\] {
+  background-color: #171B19 !important;
+}
+
+body.theme-midnight .bg-\[\#EFE9DC\]\/60 {
+  background-color: rgba(23, 27, 25, 0.6) !important;
+}
+
+body.theme-midnight .bg-\[\#EFE9DC\]\/70 {
+  background-color: rgba(23, 27, 25, 0.7) !important;
+}
+
+body.theme-midnight .bg-\[\#EFE9DC\]\/90 {
+  background-color: rgba(23, 27, 25, 0.9) !important;
+}
+
+body.theme-midnight .bg-white {
+  background-color: #141715 !important;
+}
+
+body.theme-midnight .bg-white\/90 {
+  background-color: rgba(20, 23, 21, 0.9) !important;
+}
+
+body.theme-midnight .text-\[\#171A18\] {
+  color: #F7F4ED !important;
+}
+
+body.theme-midnight .text-\[\#77736B\] {
+  color: #A6A095 !important;
+}
+
+body.theme-midnight .border-\[\#DED8CC\] {
+  border-color: #262C29 !important;
+}
+
+body.theme-midnight header {
+  background-color: rgba(14, 17, 16, 0.92) !important;
+  border-color: #262C29 !important;
+}
+
+body.theme-midnight footer {
+  border-color: #262C29 !important;
+}
+
+body.theme-midnight input,
+body.theme-midnight select,
+body.theme-midnight textarea {
+  background-color: #171B19 !important;
+  color: #F7F4ED !important;
+  border-color: #262C29 !important;
 }
 
 /* Custom scrollbar for clean luxury feel */
@@ -37,9 +108,17 @@
   background: #F7F4ED;
 }
 
+body.theme-midnight ::-webkit-scrollbar-track {
+  background: #0E1110;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #DED8CC;
   border-radius: 9999px;
+}
+
+body.theme-midnight ::-webkit-scrollbar-thumb {
+  background: #262C29;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -50,4 +129,9 @@
 ::selection {
   background-color: rgba(176, 141, 87, 0.25);
   color: #171A18;
+}
+
+body.theme-midnight ::selection {
+  background-color: rgba(176, 141, 87, 0.4);
+  color: #F7F4ED;
 }
