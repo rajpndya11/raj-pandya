@@ -16,6 +16,7 @@ import {
 import { storageService } from '../services/storageService';
 import { BlurImage } from '../components/BlurImage';
 import { triggerResumeDownload } from '../utils/resumeGenerator';
+import { RpMonogram } from '../components/BrandLogo';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -57,7 +58,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
             >
               {/* Eyebrow badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#DED8CC] bg-[#EFE9DC] text-xs font-semibold uppercase tracking-widest text-[#B08D57]">
-                <Sparkles className="w-3.5 h-3.5" />
+                <RpMonogram className="w-3.5 h-3.5 text-[#B08D57]" />
                 <span>{profile.eyebrow}</span>
               </div>
 
@@ -129,8 +130,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                       <div className="font-serif italic text-base sm:text-lg text-[#F7F4ED] whitespace-pre-line leading-tight">
                         {profile.photoTagline}
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-[#B08D57]/20 border border-[#B08D57] flex items-center justify-center text-[#B08D57]">
-                        <Compass className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-full bg-[#B08D57]/20 border border-[#B08D57] flex items-center justify-center p-1.5 text-[#B08D57]">
+                        <RpMonogram className="w-full h-full text-[#B08D57]" />
                       </div>
                     </div>
                   </div>

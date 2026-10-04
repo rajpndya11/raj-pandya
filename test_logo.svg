@@ -1,0 +1,49 @@
+<svg viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#171A18">
+    <!-- Letter R Stem & Serifs -->
+    <path d="M 295 265 L 370 265 L 370 430 L 370 545 Q 370 575, 405 580 L 295 580 Q 330 575, 330 545 L 330 305 Q 330 265, 295 265 Z" />
+    
+    <!-- Letter R Bowl Outer & Inner Counter -->
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M 370 265 C 455 265, 540 285, 540 348 C 540 412, 455 432, 370 432 Z M 370 295 C 425 295, 485 310, 485 348 C 485 388, 425 402, 370 402 Z" />
+    
+    <!-- Letter R Leg (parallel to diagonal slash) -->
+    <path d="M 405 422 L 452 422 L 490 505 L 452 525 Z" />
+    
+    <!-- Diagonal Slash (sharp, crisp stroke) -->
+    <path d="M 416 644 L 570 384 L 576 388 L 422 648 Z" />
+    
+    <!-- Letter P Stem & Serif -->
+    <path d="M 508 492 L 555 412 L 555 650 Q 555 680, 585 685 L 480 685 Q 508 680, 508 650 Z" />
+    
+    <!-- Letter P Bowl Outer & Inner Counter -->
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M 555 385 C 635 385, 710 405, 710 468 C 710 530, 635 550, 555 550 Z M 555 415 C 610 415, 655 430, 655 468 C 655 505, 610 520, 555 520 Z" />
+  </g>
+  
+  <!-- "RAJ PANDYA" -->
+  <text 
+    x="500" 
+    y="815" 
+    text-anchor="middle" 
+    font-family="system-ui, -apple-system, sans-serif" 
+    font-weight="700" 
+    font-size="52" 
+    letter-spacing="0.36em" 
+    fill="#171A18"
+  >
+    RAJ PANDYA
+  </text>
+
+  <!-- "PRODUCT MANAGER" -->
+  <text 
+    x="500" 
+    y="880" 
+    text-anchor="middle" 
+    font-family="system-ui, -apple-system, sans-serif" 
+    font-weight="400" 
+    font-size="22" 
+    letter-spacing="0.52em" 
+    fill="#171A18"
+  >
+    PRODUCT MANAGER
+  </text>
+</svg>

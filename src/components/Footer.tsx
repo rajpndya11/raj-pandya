@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Linkedin, MapPin, Lock } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -13,11 +14,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           
-          <div className="space-y-3">
-            <span className="font-serif text-lg font-bold tracking-wider text-[#F7F4ED] uppercase">
-              RAJ PANDYA
-            </span>
-            <p className="text-xs text-[#77736B] leading-relaxed">
+          <div className="space-y-4">
+            <div onClick={() => { onNavigate('/'); window.scrollTo({top:0, behavior:'smooth'}); }} className="cursor-pointer">
+              <BrandLogo size="lg" variant="dark" />
+            </div>
+            <p className="text-xs text-[#A39D91] leading-relaxed">
               Product Management & Growth Trainee with a focus on data-informed decision-making, user onboarding funnels, and autonomous AI systems.
             </p>
             <div className="flex items-center gap-2 text-xs text-[#77736B]">

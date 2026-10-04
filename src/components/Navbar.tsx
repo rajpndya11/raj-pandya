@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, ArrowUpRight, Sun, Moon } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
 
 interface NavbarProps {
   currentPath: string;
@@ -80,24 +81,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenC
   return (
     <header className="sticky top-0 z-40 bg-[#F7F4ED]/90 backdrop-blur-md border-b border-[#DED8CC] transition-colors duration-250">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-20 sm:h-24">
           
           {/* Brand Logo & Monogram */}
           <div 
             onClick={() => handleNavClick('/')}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="cursor-pointer py-2"
           >
-            <div className="w-10 h-10 rounded-full border border-[#B08D57] bg-[#171A18] text-[#F7F4ED] flex items-center justify-center font-serif font-bold text-sm tracking-widest group-hover:border-[#C6A66B] transition-colors">
-              RP
-            </div>
-            <div className="flex flex-col">
-              <span className="font-serif font-bold text-lg text-[#171A18] tracking-wider uppercase group-hover:text-[#B08D57] transition-colors">
-                RAJ PANDYA
-              </span>
-              <span className="text-[10px] tracking-widest text-[#77736B] uppercase font-medium">
-                Product Management & Growth
-              </span>
-            </div>
+            <BrandLogo size="lg" />
           </div>
 
           {/* Desktop Navigation Links */}

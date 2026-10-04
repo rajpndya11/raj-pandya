@@ -45,6 +45,7 @@ import { authService, BOOTSTRAP_ADMIN_EMAIL } from '../services/authService';
 import { storageService } from '../services/storageService';
 import { compressImage, normalizeImageUrl } from '../utils/imageCompressor';
 import { DocumentViewer } from '../components/DocumentViewer';
+import { RpMonogram, BrandLogo } from '../components/BrandLogo';
 import { 
   Project, 
   ProfileContent, 
@@ -426,6 +427,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       const dataReader = new FileReader();
       dataReader.onload = (ev) => {
         const dataUrl = ev.target?.result as string;
+        let detectedPages: number | undefined = undefined;
+        if (fileType === 'pdf' && typeof dataUrl === 'string') {
+          try {
+            // Decode base64 to check PDF page markers
+            const base64Data = dataUrl.split(',')[1];
+            if (base64Data) {
+              const binaryString = atob(base64Data.slice(0, 500000));
+              const pageMatches = binaryString.match(/\/Type\s*\/Page(?=[\s\/>])/g);
+              if (pageMatches && pageMatches.length > 0) {
+                detectedPages = pageMatches.length;
+              }
+            }
+          } catch {
+            // Ignore decoding failure
+          }
+        }
+
         setEditingProject(prev => {
           if (!prev || !prev.files) return prev;
           return {
@@ -435,7 +453,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               fileName: file.name,
               fileType,
               fileUrl: dataUrl,
-              title: f.title || file.name.replace(/\.[^/.]+$/, "")
+              title: f.title || file.name.replace(/\.[^/.]+$/, ""),
+              pageCount: detectedPages || f.pageCount || 5
             } : f)
           };
         });
@@ -2077,8 +2096,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       <header className="bg-[#171A18] text-[#F7F4ED] px-4 sm:px-8 py-4 border-b border-[#2A2E2C]">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#B08D57] text-[#171A18] flex items-center justify-center font-bold text-sm">
-              CMS
+            <div className="w-9 h-9 rounded-xl bg-[#B08D57] text-[#171A18] flex items-center justify-center p-1.5 shadow-sm">
+              <RpMonogram className="w-full h-full text-[#171A18]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
