@@ -46,6 +46,7 @@ import { storageService } from '../services/storageService';
 import { compressImage, normalizeImageUrl } from '../utils/imageCompressor';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { RpMonogram, BrandLogo } from '../components/BrandLogo';
+import { analyzeUploadedDocument } from '../utils/documentAnalyzer';
 import { 
   Project, 
   ProfileContent, 
@@ -393,7 +394,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     });
   };
 
-  const handleUploadDocumentFile = (fileId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadDocumentFile = async (fileId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editingProject || !editingProject.files) return;
 
@@ -404,10 +405,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     else if (['txt', 'md'].includes(extension)) fileType = 'txt';
     else if (['pdf'].includes(extension)) fileType = 'pdf';
 
-    if (fileType === 'txt') {
-      const textReader = new FileReader();
-      textReader.onload = (ev) => {
-        const textContent = ev.target?.result as string;
+    try {
+      // Analyze complete source file dynamically (no limits, no caps, full slide/page extraction)
+      // Source file count = generated page/slide count
+      const analysis = await analyzeUploadedDocument(file);
+
+      const dataReader = new FileReader();
+      dataReader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
         setEditingProject(prev => {
           if (!prev || !prev.files) return prev;
           return {
@@ -416,34 +421,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               ...f,
               fileName: file.name,
               fileType,
-              textContent,
-              title: f.title || file.name.replace(/\.[^/.]+$/, "")
+              fileUrl: dataUrl,
+              title: f.title || analysis.title || file.name.replace(/\.[^/.]+$/, ""),
+              pageCount: analysis.pageCount,
+              slides: analysis.slides,
+              textContent: analysis.extractedText || f.textContent
             } : f)
           };
         });
       };
-      textReader.readAsText(file);
-    } else {
-      const dataReader = new FileReader();
-      dataReader.onload = (ev) => {
+      dataReader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error analyzing document:', err);
+      // Robust fallback if custom parsing throws
+      const fallbackReader = new FileReader();
+      fallbackReader.onload = (ev) => {
         const dataUrl = ev.target?.result as string;
-        let detectedPages: number | undefined = undefined;
-        if (fileType === 'pdf' && typeof dataUrl === 'string') {
-          try {
-            // Decode base64 to check PDF page markers
-            const base64Data = dataUrl.split(',')[1];
-            if (base64Data) {
-              const binaryString = atob(base64Data.slice(0, 500000));
-              const pageMatches = binaryString.match(/\/Type\s*\/Page(?=[\s\/>])/g);
-              if (pageMatches && pageMatches.length > 0) {
-                detectedPages = pageMatches.length;
-              }
-            }
-          } catch {
-            // Ignore decoding failure
-          }
-        }
-
         setEditingProject(prev => {
           if (!prev || !prev.files) return prev;
           return {
@@ -454,12 +447,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               fileType,
               fileUrl: dataUrl,
               title: f.title || file.name.replace(/\.[^/.]+$/, ""),
-              pageCount: detectedPages || f.pageCount || 5
+              pageCount: f.pageCount || 1
             } : f)
           };
         });
       };
-      dataReader.readAsDataURL(file);
+      fallbackReader.readAsDataURL(file);
     }
   };
 
@@ -1617,8 +1610,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           <input
                             type="number"
                             min={1}
-                            max={100}
-                            value={file.pageCount || 5}
+                            max={1000}
+                            value={file.pageCount || 1}
                             onChange={(e) => handleUpdateFile(file.id, 'pageCount', parseInt(e.target.value) || 1)}
                             className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
                           />

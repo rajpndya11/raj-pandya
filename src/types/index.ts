@@ -29,6 +29,18 @@ export interface ProjectLink {
   notes?: string;
 }
 
+export interface SlideItem {
+  page: number;
+  title: string;
+  subtitle?: string;
+  eyebrow?: string;
+  body?: string;
+  bullets?: string[];
+  tags?: string[];
+  gradient?: string;
+  imageUrl?: string;
+}
+
 export interface ProjectFile {
   id: string;
   title?: string;
@@ -37,7 +49,7 @@ export interface ProjectFile {
   fileUrl: string;
   description?: string;
   pageCount?: number;
-  slides?: string[]; // For LinkedIn carousel / multi-slide flipbook
+  slides?: (string | SlideItem)[]; // For LinkedIn carousel / multi-slide flipbook (all slides preserved)
   textContent?: string; // For text / markdown reading
   sortOrder?: number;
 }

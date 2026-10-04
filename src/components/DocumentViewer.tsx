@@ -26,7 +26,8 @@ import {
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ProjectFile, ProjectLink } from '../types';
+import { ProjectFile, ProjectLink, SlideItem } from '../types';
+import { analyzeUploadedDocument, ParsedDocumentResult } from '../utils/documentAnalyzer';
 
 // Configure standard local PDF worker for high performance and zero CORS latency
 if (typeof window !== 'undefined') {
