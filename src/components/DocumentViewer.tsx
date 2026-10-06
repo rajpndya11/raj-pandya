@@ -151,11 +151,52 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false);
   const [copiedText, setCopiedText] = useState<boolean>(false);
+  const [dynamicAnalysis, setDynamicAnalysis] = useState<ParsedDocumentResult | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(750);
 
   const activeDoc = allDocuments[selectedIndex] || allDocuments[0] || null;
+
+  // Dynamically analyze uploaded source file in background to determine actual slide/page count
+  // Core rule: Source file count = generated page/slide count. NEVER cap or truncate.
+  useEffect(() => {
+    setDynamicAnalysis(null);
+    if (!activeDoc?.fileUrl) return;
+
+    let isMounted = true;
+    async function runSourceAnalysis() {
+      try {
+        let blob: Blob | null = null;
+        if (activeDoc.fileUrl.startsWith('data:')) {
+          const res = await fetch(activeDoc.fileUrl);
+          blob = await res.blob();
+        } else if (activeDoc.fileUrl.startsWith('blob:') || activeDoc.fileUrl.startsWith('/') || activeDoc.fileUrl.startsWith('http')) {
+          try {
+            const res = await fetch(activeDoc.fileUrl);
+            if (res.ok) {
+              blob = await res.blob();
+            }
+          } catch {
+            // Remote CORS or protected URL
+          }
+        }
+
+        if (blob && isMounted) {
+          const fileObj = new File([blob], activeDoc.fileName || 'source_file', { type: blob.type });
+          const result = await analyzeUploadedDocument(fileObj);
+          if (isMounted && result.pageCount > 0) {
+            setDynamicAnalysis(result);
+          }
+        }
+      } catch (err) {
+        console.warn('Dynamic document analysis note:', err);
+      }
+    }
+
+    runSourceAnalysis();
+    return () => { isMounted = false; };
+  }, [activeDoc?.id, activeDoc?.fileUrl, activeDoc?.fileName]);
 
   // Cloud Embed URL (e.g. Google Drive, Google Slides, Google Docs)
   const embedUrl = useMemo(() => {
@@ -226,11 +267,40 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   }, [isPdfLoading]);
 
   // Generate dynamic, comprehensive presentation slides matching the document's actual page count
+  // Core rule: Source file count = generated page/slide count. NEVER cap, truncate, or assume a fixed limit.
   const generatePresentationSlides = (doc: ProjectFile) => {
-    // If the document has explicitly specified slides (image URLs or customized text), use them directly
-    if (doc.slides && doc.slides.length > 0) return doc.slides;
+    // 1. If dynamic analysis has extracted slides from the source file, use them directly
+    if (dynamicAnalysis?.slides && dynamicAnalysis.slides.length > 0) {
+      return dynamicAnalysis.slides;
+    }
 
-    const targetCount = Math.max(doc.pageCount || 5, 5);
+    // 2. If the document has explicitly specified slides, use them directly
+    if (doc.slides && doc.slides.length > 0) {
+      return doc.slides.map((s, idx) => {
+        if (typeof s === 'string') {
+          return {
+            page: idx + 1,
+            title: `${doc.title || 'Slide'} — Page ${idx + 1}`,
+            subtitle: `Slide ${idx + 1} of ${doc.slides!.length}`,
+            eyebrow: `${(doc.fileType || 'PPT').toUpperCase()} PRESENTATION · SLIDE ${idx + 1}`,
+            imageUrl: s,
+            gradient: 'from-[#171A18] to-[#2A2E2C]'
+          };
+        }
+        return s;
+      });
+    }
+
+    // 3. Dynamic generation matching the exact source file count
+    // Source file count = generated page/slide count.
+    // 28-slide PPT → 28 slides. 17-slide PPT → 17 slides. 50-slide PPT → 50 slides.
+    const targetCount = Math.max(
+      dynamicAnalysis?.pageCount || 0,
+      doc.pageCount || 0,
+      numPdfPages || 0,
+      1
+    );
+
     const typeUpper = (doc.fileType || 'PPT').toUpperCase();
     const docTitle = doc.title || `${projectTitle} Strategy Deck`;
 
@@ -317,23 +387,25 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     ];
 
-    // Build array up to targetCount
+    // Build array for ALL slides up to targetCount (1 ... targetCount) without skipping any slide
     const generated: any[] = [];
     for (let i = 0; i < targetCount; i++) {
+      const slideNum = i + 1;
       if (i < standardThemes.length) {
         generated.push({
-          page: i + 1,
+          page: slideNum,
           ...standardThemes[i],
-          eyebrow: `${typeUpper} PRESENTATION · SLIDE ${i + 1}`
+          eyebrow: `${typeUpper} PRESENTATION · SLIDE ${slideNum} OF ${targetCount}`,
+          subtitle: `Slide ${slideNum} of ${targetCount}`
         });
       } else {
         generated.push({
-          page: i + 1,
-          title: `${docTitle} — Section ${i + 1}`,
-          eyebrow: `${typeUpper} PRESENTATION · SLIDE ${i + 1}`,
-          subtitle: `Strategic Exploration & Technical Appendix (Page ${i + 1})`,
-          body: `Detailed analytical deep dive, architectural schemas, and operational considerations corresponding to page ${i + 1} of this deliverable.`,
-          tags: ['Technical Deep Dive', 'Appendix', `Page ${i + 1}`],
+          page: slideNum,
+          title: `${docTitle} — Section ${slideNum}`,
+          eyebrow: `${typeUpper} PRESENTATION · SLIDE ${slideNum} OF ${targetCount}`,
+          subtitle: `Slide ${slideNum} of ${targetCount}`,
+          body: `Detailed analytical deep dive, architectural schemas, and operational considerations corresponding to slide ${slideNum} of this deliverable.`,
+          tags: ['Technical Deep Dive', 'Deliverable', `Slide ${slideNum}`],
           gradient: 'from-[#171A18] to-[#202522]'
         });
       }
@@ -344,10 +416,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   const slides = useMemo(() => {
     return activeDoc ? generatePresentationSlides(activeDoc) : [];
-  }, [activeDoc, projectTitle]);
+  }, [activeDoc, projectTitle, dynamicAnalysis, numPdfPages]);
 
   // Total pages: Accurately computed according to the document type and source
+  // Source file count = generated page/slide count
   const totalDisplayPages = useMemo(() => {
+    if (dynamicAnalysis?.pageCount && dynamicAnalysis.pageCount > 0) {
+      return dynamicAnalysis.pageCount;
+    }
     if (isPdf && numPdfPages && numPdfPages > 0) {
       return numPdfPages;
     }
@@ -358,7 +434,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       return activeDoc.slides.length;
     }
     return slides.length || 1;
-  }, [isPdf, numPdfPages, activeDoc?.pageCount, activeDoc?.slides, slides.length]);
+  }, [dynamicAnalysis?.pageCount, isPdf, numPdfPages, activeDoc?.pageCount, activeDoc?.slides, slides.length]);
 
   // Keep current slide within valid bounds if totalDisplayPages updates
   useEffect(() => {

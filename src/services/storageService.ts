@@ -5,6 +5,7 @@ import { INITIAL_EXPERIENCE, INITIAL_EDUCATION } from '../data/initialExperience
 import { SKILL_CATEGORIES } from '../data/skillsData';
 import { db, OperationType, handleFirestoreError } from './firebase';
 import { collection, doc, setDoc, deleteDoc, getDocs, getDoc, onSnapshot } from 'firebase/firestore';
+import { apiService } from './apiService';
 
 const PROJECTS_KEY = 'rp_portfolio_projects';
 const PROFILE_KEY = 'rp_portfolio_profile';
@@ -216,11 +217,47 @@ export const storageService = {
     }
   },
 
-  // Pull initial cloud state if available (Profile, Projects, Experience, Media)
+  // Pull cloud state via Backend REST API and Firestore
   async loadFromCloud(): Promise<boolean> {
     try {
-      if (!db) return false;
       let hasLoadedAny = false;
+
+      // 1. Fetch from Express Backend REST API (/api/*)
+      try {
+        const [apiProfile, apiProjects, apiExperiences, apiSkills] = await Promise.all([
+          apiService.getProfile(),
+          apiService.getProjects(),
+          apiService.getExperiences(),
+          apiService.getSkills()
+        ]);
+
+        if (apiProfile && apiProfile.name) {
+          safeStorage.setItem(PROFILE_KEY, JSON.stringify(apiProfile));
+          hasLoadedAny = true;
+        }
+        if (apiProjects && apiProjects.length > 0) {
+          safeStorage.setItem(PROJECTS_KEY, JSON.stringify(apiProjects));
+          hasLoadedAny = true;
+        }
+        if (apiExperiences && apiExperiences.length > 0) {
+          safeStorage.setItem(EXPERIENCE_KEY, JSON.stringify(apiExperiences));
+          hasLoadedAny = true;
+        }
+        if (apiSkills && apiSkills.length > 0) {
+          safeStorage.setItem(SKILLS_KEY, JSON.stringify(apiSkills));
+          hasLoadedAny = true;
+        }
+
+        if (hasLoadedAny) {
+          this.notify();
+        }
+      } catch (apiErr) {
+        console.warn('Backend REST API sync notice:', apiErr);
+      }
+
+      if (!db) return hasLoadedAny;
+
+      // 2. Direct Firestore Client sync fallback
 
       // 1. Fetch Profile & Photo
       try {
@@ -410,7 +447,8 @@ export const storageService = {
     }
 
     this.saveProjects(projects);
-    // Background cloud sync
+    // Background cloud sync via Express API and Firestore
+    apiService.saveProject(updatedProject).catch(() => {});
     this.syncToFirestore('projects', updatedProject.id, updatedProject);
     return updatedProject;
   },
@@ -418,6 +456,7 @@ export const storageService = {
   deleteProject(id: string): void {
     const projects = this.getProjects().filter(p => p.id !== id);
     this.saveProjects(projects);
+    apiService.deleteProject(id).catch(() => {});
     this.deleteFromFirestore('projects', id);
   },
 
@@ -556,6 +595,7 @@ export const storageService = {
     } catch (e) {
       console.warn('Could not persist profile', e);
     }
+    apiService.updateProfile(updated).catch(() => {});
     this.syncToFirestore('site_content', 'main_profile', updated);
     this.notify();
   },
