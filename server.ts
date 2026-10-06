@@ -109,6 +109,8 @@ app.get('/api/projects', async (req, res) => {
       if (!snap.empty) {
         const list: any[] = [];
         snap.forEach(d => list.push(d.data()));
+        // Sort by order ascending
+        list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
         return res.json({ success: true, count: list.length, data: list, source: 'firestore' });
       }
     }
@@ -232,6 +234,84 @@ app.put('/api/skills', async (req, res) => {
       }
     }
     res.json({ success: true, message: 'Skills updated in backend' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Education: GET
+app.get('/api/education', async (req, res) => {
+  try {
+    if (db) {
+      const snap = await getDocs(collection(db, 'education'));
+      if (!snap.empty) {
+        const list: any[] = [];
+        snap.forEach(d => list.push(d.data()));
+        return res.json({ success: true, count: list.length, data: list });
+      }
+    }
+    res.json({ success: true, count: 0, data: [] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Education: PUT
+app.put('/api/education', async (req, res) => {
+  try {
+    const list = req.body;
+    if (Array.isArray(list) && db) {
+      for (const item of list) {
+        if (item.id) {
+          await setDoc(doc(db, 'education', item.id), cleanPayload(item), { merge: true });
+        }
+      }
+    }
+    res.json({ success: true, message: 'Education updated in backend' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Media: GET
+app.get('/api/media', async (req, res) => {
+  try {
+    if (db) {
+      const snap = await getDocs(collection(db, 'media_assets'));
+      if (!snap.empty) {
+        const list: any[] = [];
+        snap.forEach(d => list.push(d.data()));
+        return res.json({ success: true, count: list.length, data: list });
+      }
+    }
+    res.json({ success: true, count: 0, data: [] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Media: PUT / POST
+app.put('/api/media/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const asset = req.body;
+    if (db) {
+      await setDoc(doc(db, 'media_assets', id), cleanPayload({ ...asset, id }), { merge: true });
+    }
+    res.json({ success: true, message: `Media ${id} updated in backend` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Media: DELETE
+app.delete('/api/media/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (db) {
+      await deleteDoc(doc(db, 'media_assets', id));
+    }
+    res.json({ success: true, message: `Media ${id} deleted in backend` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

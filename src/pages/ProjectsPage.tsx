@@ -24,14 +24,42 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [projects, setProjects] = useState(() => storageService.getPublishedProjects());
   const [profile, setProfile] = useState(() => storageService.getProfile());
+  const [cloudError, setCloudError] = useState<string | null>(() => storageService.getCloudError());
 
   useEffect(() => {
     const unsubscribe = storageService.onUpdate(() => {
       setProjects(storageService.getPublishedProjects());
       setProfile(storageService.getProfile());
+      setCloudError(storageService.getCloudError());
     });
     return unsubscribe;
   }, []);
+
+  if (cloudError && projects.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] flex items-center justify-center p-6 text-center">
+        <div className="max-w-md p-8 bg-white border border-[#DED8CC] rounded-2xl shadow-xl space-y-4">
+          <h2 className="font-serif text-2xl font-bold">Unable to load portfolio content</h2>
+          <p className="text-xs text-[#77736B]">Please check your connection and try again.</p>
+          <button
+            onClick={() => storageService.loadFromCloud()}
+            className="px-6 py-2.5 rounded-full bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] text-xs font-semibold uppercase tracking-wider transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (projects.length === 0 && !storageService.isCloudLoaded()) {
+    return (
+      <div className="min-h-screen bg-[#F7F4ED] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-10 h-10 rounded-full border-2 border-[#B08D57] border-t-transparent animate-spin mb-4" />
+        <p className="text-xs uppercase tracking-widest text-[#77736B] font-semibold">Loading portfolio data...</p>
+      </div>
+    );
+  }
 
   const filteredProjects = projects.filter((project) => {
     const matchesCategory = 

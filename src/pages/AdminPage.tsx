@@ -124,6 +124,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [passcodeSuccess, setPasscodeSuccess] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
 
+  // Firestore save status indicators
+  const [projectSaveStatus, setProjectSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [projectSaveError, setProjectSaveError] = useState('');
+  const [profileSaveStatus, setProfileSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [profileSaveError, setProfileSaveError] = useState('');
+  const [expSaveStatus, setExpSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [expSaveError, setExpSaveError] = useState('');
+  const [eduSaveStatus, setEduSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [eduSaveError, setEduSaveError] = useState('');
+  const [skillsSaveStatus, setSkillsSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [skillsSaveError, setSkillsSaveError] = useState('');
+
   // Backup & cloud state
   const [backupStatus, setBackupStatus] = useState('');
   const [cloudSyncing, setCloudSyncing] = useState(false);
@@ -156,7 +168,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       }
     });
 
-    return () => unsubscribe();
+    // 3. Subscribe to real-time storage/Firestore updates
+    const unsubStorage = storageService.onUpdate(() => {
+      loadData();
+    });
+
+    return () => {
+      unsubscribe();
+      unsubStorage();
+    };
   }, []);
 
   const loadData = () => {
@@ -205,7 +225,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   // --- PROJECT CRUD ---
-  const handleStartNewProject = () => {
+  const handleStartNewProject = async () => {
     const newProj: Project = {
       id: `proj-${Date.now()}`,
       slug: `new-case-study-${Date.now().toString().slice(-4)}`,
@@ -247,57 +267,104 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0]
     };
-    // Persist immediately so the slug route /projects/new-case-study-... is active without 404
-    storageService.saveProject(newProj);
-    setProjects(storageService.getProjects());
+    // Persist immediately to Firestore
+    try {
+      await storageService.saveProject(newProj);
+      setProjects(storageService.getProjects());
+    } catch (e) {
+      console.warn('Initial project save note:', e);
+    }
     setEditingProject(newProj);
     setIsCreatingNew(true);
     setProjectEditorTab('basic');
   };
 
-  const handleSaveProject = () => {
+  const handleSaveProject = async () => {
     if (!editingProject) return;
-    const saved = storageService.saveProject(editingProject);
-    setProjects(storageService.getProjects());
-    setEditingProject(null);
-    setIsCreatingNew(false);
-  };
+    if (!editingProject.title?.trim()) {
+      setProjectSaveError('Project title cannot be empty.');
+      return;
+    }
+    if (!editingProject.slug?.trim()) {
+      setProjectSaveError('Project slug cannot be empty.');
+      return;
+    }
 
-  const handleDuplicateProject = (id: string) => {
-    const dup = storageService.duplicateProject(id);
-    if (dup) {
+    setProjectSaveStatus('saving');
+    setProjectSaveError('');
+    try {
+      const saved = await storageService.saveProject(editingProject);
       setProjects(storageService.getProjects());
+      setProjectSaveStatus('saved');
+      setTimeout(() => {
+        setEditingProject(null);
+        setIsCreatingNew(false);
+        setProjectSaveStatus('idle');
+      }, 1200);
+    } catch (err: any) {
+      console.error('Save project error:', err);
+      setProjectSaveStatus('error');
+      setProjectSaveError(err.message || 'Failed to save project to Firestore. Please try again.');
     }
   };
 
-  const handleConfirmDelete = () => {
-    if (!itemToDelete) return;
-    if (itemToDelete.type === 'project') {
-      storageService.deleteProject(itemToDelete.id);
-      setProjects(storageService.getProjects());
-      if (editingProject?.id === itemToDelete.id) {
-        setEditingProject(null);
+  const handleDuplicateProject = async (id: string) => {
+    try {
+      const dup = await storageService.duplicateProject(id);
+      if (dup) {
+        setProjects(storageService.getProjects());
       }
-    } else if (itemToDelete.type === 'media') {
-      storageService.deleteMediaAsset(itemToDelete.id);
-      setMediaAssets(storageService.getMediaAssets());
+    } catch (err: any) {
+      console.error('Duplicate project error:', err);
+      alert('Failed to duplicate project: ' + err.message);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      if (itemToDelete.type === 'project') {
+        await storageService.deleteProject(itemToDelete.id);
+        setProjects(storageService.getProjects());
+        if (editingProject?.id === itemToDelete.id) {
+          setEditingProject(null);
+        }
+      } else if (itemToDelete.type === 'media') {
+        await storageService.deleteMediaAsset(itemToDelete.id);
+        setMediaAssets(storageService.getMediaAssets());
+      }
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      alert('Failed to delete item: ' + err.message);
     }
     setItemToDelete(null);
   };
 
-  const handleTogglePublish = (id: string) => {
-    storageService.togglePublish(id);
-    setProjects(storageService.getProjects());
+  const handleTogglePublish = async (id: string) => {
+    try {
+      await storageService.togglePublish(id);
+      setProjects(storageService.getProjects());
+    } catch (err: any) {
+      console.error('Toggle publish error:', err);
+    }
   };
 
-  const handleToggleFeatured = (id: string) => {
-    storageService.toggleFeatured(id);
-    setProjects(storageService.getProjects());
+  const handleToggleFeatured = async (id: string) => {
+    try {
+      await storageService.toggleFeatured(id);
+      setProjects(storageService.getProjects());
+    } catch (err: any) {
+      console.error('Toggle featured error:', err);
+    }
   };
 
-  const handleReorder = (id: string, direction: 'up' | 'down') => {
-    const updated = storageService.reorderProjects(id, direction);
-    setProjects(updated);
+  const handleReorder = async (id: string, direction: 'up' | 'down') => {
+    try {
+      const updated = await storageService.reorderProjects(id, direction);
+      setProjects(updated);
+    } catch (err: any) {
+      console.error('Reorder error:', err);
+    }
   };
 
   // Wireframe handling in editor
@@ -579,13 +646,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     if (file) {
       try {
         setIsOptimizingPhoto(true);
-        setPhotoStatusMessage('Optimizing & compressing headshot for lightning-fast web delivery...');
+        setPhotoStatusMessage('Optimizing & compressing headshot for web delivery...');
         const optimized = await compressImage(file, 720, 960, 0.78);
         const updated = { ...profile, photoUrl: optimized };
         setProfile(updated);
-        // Instantly save to local cache, broadcast across tabs, and sync to Firestore
-        storageService.saveProfile(updated);
-        setPhotoStatusMessage('✓ Headshot photo saved and updated on live website!');
+        // Instantly save to Firestore
+        await storageService.saveProfile(updated);
+        setPhotoStatusMessage('✓ Headshot photo saved live to Firestore!');
         setTimeout(() => setPhotoStatusMessage(''), 5000);
       } catch (err: any) {
         setPhotoStatusMessage(`Upload error: ${err.message || 'Could not process photo'}`);
@@ -596,27 +663,63 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   // Save profile
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    storageService.saveProfile(profile);
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 3000);
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setProfileSaveStatus('saving');
+    setProfileSaveError('');
+    try {
+      await storageService.saveProfile(profile);
+      setProfileSaveStatus('saved');
+      setProfileSaved(true);
+      setTimeout(() => {
+        setProfileSaved(false);
+        setProfileSaveStatus('idle');
+      }, 3000);
+    } catch (err: any) {
+      console.error('Save profile error:', err);
+      setProfileSaveStatus('error');
+      setProfileSaveError(err.message || 'Failed to save profile to Firestore.');
+    }
   };
 
   // Save experience
-  const handleSaveExperience = () => {
-    storageService.saveExperience(experiences);
-    setExpSaved(true);
-    setTimeout(() => setExpSaved(false), 3000);
+  const handleSaveExperience = async () => {
+    setExpSaveStatus('saving');
+    setExpSaveError('');
+    try {
+      await storageService.saveExperience(experiences);
+      setExpSaveStatus('saved');
+      setExpSaved(true);
+      setTimeout(() => {
+        setExpSaved(false);
+        setExpSaveStatus('idle');
+      }, 3000);
+    } catch (err: any) {
+      console.error('Save experience error:', err);
+      setExpSaveStatus('error');
+      setExpSaveError(err.message || 'Failed to save experience to Firestore.');
+    }
   };
 
   // Save skills
-  const handleSaveSkills = () => {
-    storageService.saveSkills(skillsList);
-    // Also save page headers in profile
-    storageService.saveProfile(profile);
-    setSkillsSaved(true);
-    setTimeout(() => setSkillsSaved(false), 3000);
+  const handleSaveSkills = async () => {
+    setSkillsSaveStatus('saving');
+    setSkillsSaveError('');
+    try {
+      await storageService.saveSkills(skillsList);
+      // Also save page headers in profile
+      await storageService.saveProfile(profile);
+      setSkillsSaveStatus('saved');
+      setSkillsSaved(true);
+      setTimeout(() => {
+        setSkillsSaved(false);
+        setSkillsSaveStatus('idle');
+      }, 3000);
+    } catch (err: any) {
+      console.error('Save skills error:', err);
+      setSkillsSaveStatus('error');
+      setSkillsSaveError(err.message || 'Failed to save skills to Firestore.');
+    }
   };
 
   const handleAddSkillToCategory = (catId: string) => {
@@ -658,10 +761,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   // Save education
-  const handleSaveEducation = () => {
-    storageService.saveEducation(educationList);
-    setEduSaved(true);
-    setTimeout(() => setEduSaved(false), 3000);
+  const handleSaveEducation = async () => {
+    setEduSaveStatus('saving');
+    setEduSaveError('');
+    try {
+      await storageService.saveEducation(educationList);
+      setEduSaveStatus('saved');
+      setEduSaved(true);
+      setTimeout(() => {
+        setEduSaved(false);
+        setEduSaveStatus('idle');
+      }, 3000);
+    } catch (err: any) {
+      console.error('Save education error:', err);
+      setEduSaveStatus('error');
+      setEduSaveError(err.message || 'Failed to save education to Firestore.');
+    }
   };
 
   const handleAddEducation = () => {
@@ -767,10 +882,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const content = event.target?.result as string;
         if (content) {
-          const success = storageService.importBackup(content);
+          const success = await storageService.importBackup(content);
           if (success) {
             loadData();
             setBackupStatus('Backup restored successfully!');
@@ -982,10 +1097,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
             <button
               onClick={handleSaveProject}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider transition-all shadow-md"
+              disabled={projectSaveStatus === 'saving'}
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider transition-all shadow-md disabled:opacity-50"
             >
-              <Check className="w-3.5 h-3.5" />
-              <span>Save & Publish</span>
+              {projectSaveStatus === 'saving' ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving to Cloud...</span>
+                </>
+              ) : projectSaveStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Saved Live!</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Project</span>
+                </>
+              )}
             </button>
           </div>
         </header>
@@ -2059,10 +2189,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
           )}
 
+          {projectSaveError && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 mb-4">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{projectSaveError}</span>
+            </div>
+          )}
+
           {/* Action Footer */}
           <div className="flex items-center justify-between pt-6 border-t border-[#DED8CC]">
             <button
-              onClick={() => setEditingProject(null)}
+              onClick={() => {
+                setEditingProject(null);
+                setProjectSaveError('');
+                setProjectSaveStatus('idle');
+              }}
               className="px-6 py-2.5 rounded-xl border border-[#DED8CC] text-xs font-semibold hover:bg-[#EFE9DC]"
             >
               Cancel Changes
@@ -2070,9 +2211,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
             <button
               onClick={handleSaveProject}
-              className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider transition-all shadow-md"
+              disabled={projectSaveStatus === 'saving'}
+              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider transition-all shadow-md disabled:opacity-50"
             >
-              Save Project Changes
+              {projectSaveStatus === 'saving' ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Saving to Cloud...</span>
+                </>
+              ) : projectSaveStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Saved Live to Firestore!</span>
+                </>
+              ) : (
+                <span>Save Project Changes</span>
+              )}
             </button>
           </div>
 
@@ -3253,12 +3407,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {profileSaveError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{profileSaveError}</span>
+                  </div>
+                )}
                 <div className="text-right pt-4 border-t border-[#DED8CC]">
                   <button
                     type="submit"
-                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    disabled={profileSaveStatus === 'saving'}
+                    className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                   >
-                    {profileSaved ? 'Saved Live!' : 'Save All Home Page Changes'}
+                    {profileSaveStatus === 'saving' ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving to Firestore...</span>
+                      </>
+                    ) : profileSaveStatus === 'saved' || profileSaved ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Saved Live to Firestore!</span>
+                      </>
+                    ) : (
+                      <span>Save All Home Page Changes</span>
+                    )}
                   </button>
                 </div>
               </form>
@@ -3286,9 +3459,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={handleSaveSkills}
-                      className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                      disabled={skillsSaveStatus === 'saving'}
+                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                     >
-                      {skillsSaved ? 'Saved Live!' : 'Save All Skills'}
+                      {skillsSaveStatus === 'saving' ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving to Cloud...</span>
+                        </>
+                      ) : skillsSaveStatus === 'saved' || skillsSaved ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Saved Live!</span>
+                        </>
+                      ) : (
+                        <span>Save All Skills</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -3438,13 +3624,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   ))}
                 </div>
 
+                {skillsSaveError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{skillsSaveError}</span>
+                  </div>
+                )}
                 <div className="text-right pt-4 border-t border-[#DED8CC]">
                   <button
                     type="button"
                     onClick={handleSaveSkills}
-                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    disabled={skillsSaveStatus === 'saving'}
+                    className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                   >
-                    {skillsSaved ? 'Saved Live!' : 'Save All Skills Changes'}
+                    {skillsSaveStatus === 'saving' ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving to Firestore...</span>
+                      </>
+                    ) : skillsSaveStatus === 'saved' || skillsSaved ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Saved Live to Firestore!</span>
+                      </>
+                    ) : (
+                      <span>Save All Skills Changes</span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -3483,9 +3688,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <button
                       type="button"
                       onClick={handleSaveExperience}
-                      className="px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                      disabled={expSaveStatus === 'saving'}
+                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                     >
-                      {expSaved ? 'Saved Live!' : 'Save Experience'}
+                      {expSaveStatus === 'saving' ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving to Cloud...</span>
+                        </>
+                      ) : expSaveStatus === 'saved' || expSaved ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Saved Live!</span>
+                        </>
+                      ) : (
+                        <span>Save Experience</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -3723,9 +3941,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <button
                         type="button"
                         onClick={handleSaveEducation}
-                        className="px-5 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                        disabled={eduSaveStatus === 'saving'}
+                        className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                       >
-                        {eduSaved ? 'Saved Live!' : 'Save Education'}
+                        {eduSaveStatus === 'saving' ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : eduSaveStatus === 'saved' || eduSaved ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Saved Live!</span>
+                          </>
+                        ) : (
+                          <span>Save Education</span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -3832,17 +4063,36 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
+                {(expSaveError || eduSaveError) && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{expSaveError || eduSaveError}</span>
+                  </div>
+                )}
                 <div className="text-right pt-4 border-t border-[#DED8CC]">
                   <button
                     type="button"
-                    onClick={() => {
-                      handleSaveExperience();
-                      handleSaveEducation();
-                      storageService.saveProfile(profile);
+                    onClick={async () => {
+                      await handleSaveExperience();
+                      await handleSaveEducation();
+                      await storageService.saveProfile(profile);
                     }}
-                    className="px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    disabled={expSaveStatus === 'saving' || eduSaveStatus === 'saving'}
+                    className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] font-bold text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
                   >
-                    {expSaved && eduSaved ? 'Saved Live!' : 'Save Experience & Education'}
+                    {expSaveStatus === 'saving' || eduSaveStatus === 'saving' ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving to Firestore...</span>
+                      </>
+                    ) : (expSaveStatus === 'saved' || expSaved) && (eduSaveStatus === 'saved' || eduSaved) ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Saved Live to Firestore!</span>
+                      </>
+                    ) : (
+                      <span>Save Experience & Education</span>
+                    )}
                   </button>
                 </div>
               </div>

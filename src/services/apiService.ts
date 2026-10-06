@@ -1,4 +1,4 @@
-import { Project, ProfileContent, ExperienceItem, SkillCategory } from '../types';
+import { Project, ProfileContent, ExperienceItem, EducationItem, MediaAsset, SkillCategory } from '../types';
 
 /**
  * Full-Stack API Client:
@@ -128,6 +128,70 @@ export const apiService = {
       return res.ok;
     } catch (err) {
       console.warn('API updateSkills error:', err);
+      return false;
+    }
+  },
+
+  async getEducation(): Promise<EducationItem[]> {
+    try {
+      const res = await fetch('/api/education');
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.data || [];
+    } catch (err) {
+      console.warn('API getEducation error:', err);
+      return [];
+    }
+  },
+
+  async updateEducation(education: EducationItem[]): Promise<boolean> {
+    try {
+      const res = await fetch('/api/education', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(education)
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('API updateEducation error:', err);
+      return false;
+    }
+  },
+
+  async getMedia(): Promise<MediaAsset[]> {
+    try {
+      const res = await fetch('/api/media');
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.data || [];
+    } catch (err) {
+      console.warn('API getMedia error:', err);
+      return [];
+    }
+  },
+
+  async saveMedia(asset: MediaAsset): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/media/${encodeURIComponent(asset.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(asset)
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('API saveMedia error:', err);
+      return false;
+    }
+  },
+
+  async deleteMedia(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/media/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('API deleteMedia error:', err);
       return false;
     }
   }

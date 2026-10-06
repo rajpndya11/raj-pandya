@@ -29,6 +29,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
   const [experiences, setExperiences] = useState(() => storageService.getExperience());
   const [skillsList, setSkillsList] = useState(() => storageService.getSkills());
   const primaryExp = experiences[0] || null;
+  const [cloudError, setCloudError] = useState<string | null>(() => storageService.getCloudError());
 
   useEffect(() => {
     // Automatically subscribe to updates from Firestore or CMS edits
@@ -37,9 +38,36 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
       setFeaturedProjects(storageService.getFeaturedProjects());
       setExperiences(storageService.getExperience());
       setSkillsList(storageService.getSkills());
+      setCloudError(storageService.getCloudError());
     });
     return unsubscribe;
   }, []);
+
+  if (cloudError && (!profile || !profile.name)) {
+    return (
+      <div className="min-h-screen bg-[#F7F4ED] text-[#171A18] flex items-center justify-center p-6 text-center">
+        <div className="max-w-md p-8 bg-white border border-[#DED8CC] rounded-2xl shadow-xl space-y-4">
+          <h2 className="font-serif text-2xl font-bold">Unable to load portfolio content</h2>
+          <p className="text-xs text-[#77736B]">Please check your connection and try again.</p>
+          <button
+            onClick={() => storageService.loadFromCloud()}
+            className="px-6 py-2.5 rounded-full bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] text-xs font-semibold uppercase tracking-wider transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile || !profile.name) {
+    return (
+      <div className="min-h-screen bg-[#F7F4ED] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-10 h-10 rounded-full border-2 border-[#B08D57] border-t-transparent animate-spin mb-4" />
+        <p className="text-xs uppercase tracking-widest text-[#77736B] font-semibold">Loading portfolio data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F4ED] text-[#171A18]">
