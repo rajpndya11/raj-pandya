@@ -12,6 +12,7 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { AdminPage } from './pages/AdminPage';
 import { storageService } from './services/storageService';
 import { PortfolioProvider } from './context/PortfolioContext';
+import { PortfolioChatbot } from './components/PortfolioChatbot';
 
 // Robust Error Boundary to guarantee the screen never stays blank
 interface ErrorBoundaryProps {
@@ -97,6 +98,7 @@ export default function App() {
 
   const [currentPath, setCurrentPath] = useState<string>(getInitialPath);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     // Initialize theme from storage
@@ -232,6 +234,7 @@ export default function App() {
             currentPath={currentPath}
             onNavigate={navigate}
             onOpenConnect={() => setIsConnectOpen(true)}
+            onOpenChat={() => setIsChatOpen(true)}
           />
         )}
 
@@ -260,9 +263,19 @@ export default function App() {
 
         {/* Connect Modal */}
         <ConnectModal 
-          isOpen={isConnectOpen} 
-          onClose={() => setIsConnectOpen(false)} 
+            isOpen={isConnectOpen} 
+            onClose={() => setIsConnectOpen(false)} 
         />
+
+        {/* Gemini AI Portfolio Chatbot (Always live synced with Firestore) */}
+        {!isAdminRoute && (
+          <PortfolioChatbot 
+            isOpen={isChatOpen}
+            onOpen={() => setIsChatOpen(true)}
+            onClose={() => setIsChatOpen(false)}
+            currentPath={currentPath}
+          />
+        )}
 
       </div>
     </ErrorBoundary>
