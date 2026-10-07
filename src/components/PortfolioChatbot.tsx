@@ -14,7 +14,8 @@ import {
   Flame,
   CheckCircle2,
   Minimize2,
-  Maximize2
+  Maximize2,
+  FastForward
 } from 'lucide-react';
 import { chatService, ChatMessage } from '../services/chatService';
 
@@ -50,16 +51,20 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const activeReplyRef = useRef<{ reply: string; suggestedQuestions: string[] } | null>(null);
 
   // Auto-scroll to bottom of thread
   useEffect(() => {
     if (isOpen && !isMinimized) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading, isOpen, isMinimized]);
+  }, [messages, isLoading, isTyping, typingText, isOpen, isMinimized]);
 
   // Focus input on open
   useEffect(() => {
@@ -67,6 +72,15 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
       setTimeout(() => inputRef.current?.focus(), 250);
     }
   }, [isOpen, isMinimized]);
+
+  // Clean up typing animation interval on unmount
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -79,9 +93,67 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Immediately finishes typing and commits the message
+  const finishTypingImmediately = () => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+
+    if (activeReplyRef.current) {
+      const { reply, suggestedQuestions } = activeReplyRef.current;
+      const modelMessage: ChatMessage = {
+        id: `model-${Date.now()}`,
+        role: 'model',
+        content: reply,
+        suggestedQuestions,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, modelMessage]);
+      activeReplyRef.current = null;
+    }
+
+    setIsTyping(false);
+    setTypingText('');
+  };
+
+  // Start animated typing output
+  const startTypingAnimation = (reply: string, suggestedQuestions: string[]) => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+    }
+
+    activeReplyRef.current = { reply, suggestedQuestions };
+    setIsTyping(true);
+    setTypingText('');
+
+    const totalLength = reply.length;
+    // Responsive timing: around 1.5 - 3 seconds total typing duration
+    const stepInterval = 16; // 60fps-like ticks
+    const targetDurationMs = Math.min(2600, Math.max(900, totalLength * 2.2));
+    const totalSteps = Math.max(1, Math.floor(targetDurationMs / stepInterval));
+    const charsPerStep = Math.max(2, Math.ceil(totalLength / totalSteps));
+
+    let currentIndex = 0;
+
+    typingIntervalRef.current = setInterval(() => {
+      currentIndex += charsPerStep;
+      if (currentIndex >= totalLength) {
+        finishTypingImmediately();
+      } else {
+        setTypingText(reply.slice(0, currentIndex));
+      }
+    }, stepInterval);
+  };
+
   const handleSend = async (questionText?: string) => {
     const textToSend = (questionText || input).trim();
     if (!textToSend || isLoading) return;
+
+    // If typing was in progress, complete it instantly before starting new turn
+    if (isTyping) {
+      finishTypingImmediately();
+    }
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -112,15 +184,10 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
       const response = await chatService.sendMessage(apiPayload, currentPath);
 
       if (response.success && response.reply) {
-        const modelMessage: ChatMessage = {
-          id: `model-${Date.now()}`,
-          role: 'model',
-          content: response.reply,
-          suggestedQuestions: response.suggestedQuestions || [],
-          timestamp: Date.now()
-        };
-        setMessages(prev => [...prev, modelMessage]);
+        setIsLoading(false);
+        startTypingAnimation(response.reply, response.suggestedQuestions || []);
       } else {
+        setIsLoading(false);
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: 'model',
@@ -131,6 +198,7 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
         setMessages(prev => [...prev, errorMessage]);
       }
     } catch (err: any) {
+      setIsLoading(false);
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'model',
@@ -138,12 +206,19 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
         timestamp: Date.now()
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleResetConversation = () => {
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+    activeReplyRef.current = null;
+    setIsTyping(false);
+    setTypingText('');
+    setIsLoading(false);
+
     setMessages([
       {
         id: `welcome-${Date.now()}`,
@@ -293,8 +368,8 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-[#A6A29A] flex items-center gap-1.5 font-sans">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Executive Product Assistant
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${isLoading ? 'bg-amber-400 animate-ping' : isTyping ? 'bg-[#B08D57] animate-pulse' : 'bg-emerald-400'}`} />
+                    {isLoading ? 'Thinking & analyzing...' : isTyping ? 'AI is typing response...' : 'Executive Product Assistant'}
                   </p>
                 </div>
               </div>
@@ -379,18 +454,52 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                     );
                   })}
 
-                  {/* Thinking Indicator */}
+                  {/* Active Typing Message Stream */}
+                  {isTyping && (
+                    <div className="flex flex-col items-start space-y-1.5 animate-in fade-in duration-200">
+                      <div className="max-w-[88%] rounded-2xl px-4 py-3 shadow-sm bg-white dark:bg-[#232724] text-[#171A18] dark:text-[#EFE9DC] border border-[#B08D57]/50 dark:border-[#B08D57]/50 rounded-bl-xs">
+                        <div>
+                          {renderFormattedText(typingText)}
+                          <span className="inline-block w-1.5 h-4 ml-1 bg-[#B08D57] rounded-xs animate-pulse align-middle" />
+                        </div>
+
+                        {/* Typing Action Bar */}
+                        <div className="mt-3 pt-2 border-t border-[#DED8CC]/60 dark:border-[#383C39]/60 flex items-center justify-between text-[11px] text-[#A6A29A]">
+                          <span className="flex items-center gap-1.5 text-[#B08D57] font-medium text-[10px]">
+                            <Sparkles className="w-3 h-3 animate-spin" />
+                            <span>AI is typing live response...</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={finishTypingImmediately}
+                            className="px-2 py-0.5 rounded bg-[#FAF8F3] dark:bg-[#1A1D1B] border border-[#DED8CC] dark:border-[#383C39] hover:border-[#B08D57] hover:text-[#B08D57] text-[#77736B] dark:text-[#A6A29A] transition-colors cursor-pointer flex items-center gap-1 font-sans text-[10px]"
+                            title="Skip to end of response"
+                          >
+                            <span>Skip typing</span>
+                            <FastForward className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Typing Animation State: Thinking & preparing response */}
                   {isLoading && (
-                    <div className="flex items-start gap-2">
-                      <div className="bg-white dark:bg-[#232724] border border-[#DED8CC] dark:border-[#383C39] rounded-2xl rounded-bl-xs px-4 py-3 shadow-sm flex items-center gap-2">
+                    <div className="flex items-start gap-2 animate-in fade-in duration-200">
+                      <div className="bg-white dark:bg-[#232724] border border-[#DED8CC] dark:border-[#383C39] rounded-2xl rounded-bl-xs px-4 py-3 shadow-sm flex items-center gap-3">
                         <div className="flex space-x-1.5">
                           <div className="w-2 h-2 rounded-full bg-[#B08D57] animate-bounce" style={{ animationDelay: '0ms' }} />
                           <div className="w-2 h-2 rounded-full bg-[#B08D57] animate-bounce" style={{ animationDelay: '150ms' }} />
                           <div className="w-2 h-2 rounded-full bg-[#B08D57] animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
-                        <span className="text-xs text-[#77736B] font-medium">
-                          Thinking...
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-[#171A18] dark:text-[#EFE9DC] font-medium tracking-tight">
+                            Raj&apos;s Portfolio AI is typing...
+                          </span>
+                          <span className="text-[10px] text-[#A6A29A]">
+                            Analyzing portfolio &amp; metrics
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -427,8 +536,8 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                     </button>
                   </form>
                   <div className="mt-1.5 flex items-center justify-between text-[10px] text-[#A6A29A] px-1 font-sans">
-                    <span>Press Enter to send</span>
-                    <span>Executive AI Assistant</span>
+                    <span>{isTyping ? 'Press Enter to submit and skip typing' : 'Press Enter to send'}</span>
+                    <span>{isTyping ? 'AI Typing Active' : 'Executive AI Assistant'}</span>
                   </div>
                 </div>
               </>

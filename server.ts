@@ -7,12 +7,26 @@ import { getFirestore, initializeFirestore, collection, doc, getDoc, getDocs, se
 import { GoogleGenAI } from '@google/genai';
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+// Runtime Environment requires Express to run on Port 3000 behind Nginx (port 8080)
+const portArgIdx = process.argv.indexOf('--port');
+const cliPort = portArgIdx !== -1 && process.argv[portArgIdx + 1] ? Number(process.argv[portArgIdx + 1]) : null;
+const PORT = cliPort || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Support generous payload size for document base64 data and image assets
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// CORS and Preflight headers for all endpoints
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // Initialize server-side Firestore connection
 let db: any = null;
@@ -458,8 +472,12 @@ async function getLivePortfolioContext() {
   return context;
 }
 
-// Multi-Turn Chat Endpoint
-app.post('/api/chat', async (req, res) => {
+// Multi-Turn Chat Endpoint (Supports both paths and health checks)
+app.get(['/api/chat', '/api/chat/'], (req, res) => {
+  res.json({ status: 'ok', endpoint: '/api/chat', method: 'POST required' });
+});
+
+app.post(['/api/chat', '/api/chat/'], async (req, res) => {
   try {
     const { messages, currentPath } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -472,7 +490,7 @@ app.post('/api/chat', async (req, res) => {
     const systemInstruction = `You are the official AI Assistant for Raj Pandya's Executive Product Management, Growth & AI Portfolio.
 Your goal is to represent Raj Pandya accurately, eloquently, and knowledgeably to recruiters, hiring managers, founders, collaborators, and visitors.
 
-AUTHORITATIVE LIVE KNOWLEDGE BASE (SYNCED IN REAL-TIME WITH RAJ'S FIRESTORE DATABASE):
+AUTHORITATIVE PORTFOLIO KNOWLEDGE BASE:
 ${liveContext}
 
 CRITICAL RULES:
