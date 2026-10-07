@@ -43,7 +43,7 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
     {
       id: 'welcome',
       role: 'model',
-      content: "Hello! I am **Raj Pandya's Portfolio AI**, directly synced in real-time with his latest Firestore portfolio data.\n\nAsk me anything about Raj's **case studies**, **growth metrics**, **product frameworks**, or **career background**.",
+      content: "Hello! I am **Raj Pandya's Portfolio AI**.\n\nAsk me anything about Raj's **case studies**, **growth metrics**, **product frameworks**, or **career background**.",
       suggestedQuestions: DEFAULT_STARTER_QUESTIONS.slice(0, 3),
       timestamp: Date.now()
     }
@@ -255,7 +255,7 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
             >
               <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#B08D57]/20 to-transparent pointer-events-none" />
               <Sparkles className="w-6 h-6 text-[#B08D57] group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#171A18]" title="Live Synced" />
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#171A18]" />
             </motion.button>
           </motion.div>
         )}
@@ -293,8 +293,8 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-[#A6A29A] flex items-center gap-1.5 font-sans">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Live Synced with Firestore
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Executive Product Assistant
                   </p>
                 </div>
               </div>
@@ -389,7 +389,7 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                           <div className="w-2 h-2 rounded-full bg-[#B08D57] animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                         <span className="text-xs text-[#77736B] font-medium">
-                          Consulting Raj&apos;s live portfolio data...
+                          Thinking...
                         </span>
                       </div>
                     </div>
@@ -428,7 +428,7 @@ export const PortfolioChatbot: React.FC<PortfolioChatbotProps> = ({
                   </form>
                   <div className="mt-1.5 flex items-center justify-between text-[10px] text-[#A6A29A] px-1 font-sans">
                     <span>Press Enter to send</span>
-                    <span>Direct Gemini Grounding</span>
+                    <span>Executive AI Assistant</span>
                   </div>
                 </div>
               </>
