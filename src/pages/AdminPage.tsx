@@ -593,7 +593,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       }
       setUploadingMedia(true);
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const result = event.target?.result as string;
         if (result) {
           const newAsset: MediaAsset = {
@@ -605,9 +605,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             caption: 'Uploaded portfolio deliverable',
             createdAt: new Date().toISOString()
           };
-          storageService.saveMediaAsset(newAsset);
-          setMediaAssets(storageService.getMediaAssets());
-          setUploadingMedia(false);
+          try {
+            await storageService.saveMediaAsset(newAsset);
+            setMediaAssets(storageService.getMediaAssets());
+          } catch (err: any) {
+            console.error('Save media asset error:', err);
+            alert('Failed to save media to Firestore: ' + (err.message || 'Unknown error'));
+          } finally {
+            setUploadingMedia(false);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -829,21 +835,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const fileUrl = event.target?.result as string;
       const updated = { ...profile, resumeUrl: fileUrl };
       setProfile(updated);
-      storageService.saveProfile(updated);
-      storageService.saveMediaAsset({
-        id: `media-resume-${Date.now()}`,
-        name: file.name,
-        url: fileUrl,
-        type: file.type || 'application/pdf',
-        size: file.size,
-        createdAt: new Date().toISOString()
-      });
-      setPhotoStatusMessage('✓ Resume document uploaded & saved successfully!');
-      setTimeout(() => setPhotoStatusMessage(''), 4000);
+      try {
+        await storageService.saveProfile(updated);
+        await storageService.saveMediaAsset({
+          id: `media-resume-${Date.now()}`,
+          name: file.name,
+          url: fileUrl,
+          type: file.type || 'application/pdf',
+          size: file.size,
+          createdAt: new Date().toISOString()
+        });
+        setPhotoStatusMessage('✓ Resume document uploaded & saved successfully to Firestore!');
+        setTimeout(() => setPhotoStatusMessage(''), 4000);
+      } catch (err: any) {
+        console.error('Resume upload error:', err);
+        setPhotoStatusMessage(`Resume upload error: ${err.message || 'Failed to save'}`);
+      }
     };
     reader.readAsDataURL(file);
   };

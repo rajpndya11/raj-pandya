@@ -11,6 +11,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { AdminPage } from './pages/AdminPage';
 import { storageService } from './services/storageService';
+import { PortfolioProvider } from './context/PortfolioContext';
 
 // Robust Error Boundary to guarantee the screen never stays blank
 interface ErrorBoundaryProps {

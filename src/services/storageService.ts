@@ -149,6 +149,8 @@ class StorageService {
     const unsubs: (() => void)[] = [];
 
     try {
+      console.log('[Firestore] Initializing real-time listeners');
+
       // 1. Profile real-time listener (site_content/main_profile)
       const unsubProfile = onSnapshot(doc(db, 'site_content', 'main_profile'), (docSnap) => {
         if (docSnap.exists()) {
@@ -158,104 +160,91 @@ class StorageService {
             safeStorage.setItem(PROFILE_KEY, JSON.stringify(cloudProfile));
             this.cloudLoaded = true;
             this.cloudError = null;
+            console.log('[Firestore] Listener updated: profile');
             this.notify();
           }
         }
       }, (err) => {
-        console.warn('Realtime cloud profile sync listener note:', err);
+        console.warn('[Firestore] Profile listener error:', err);
         this.cloudError = 'Profile sync issue: ' + err.message;
       });
       unsubs.push(unsubProfile);
 
       // 2. Projects real-time listener (projects)
       const unsubProjects = onSnapshot(collection(db, 'projects'), (snap) => {
-        if (!snap.empty) {
-          const list: Project[] = [];
-          snap.forEach(d => {
-            const data = d.data() as Project;
-            if (data && data.id) {
-              list.push(data);
-            }
-          });
-          if (list.length > 0) {
-            // Sort strictly by order ascending
-            const sorted = list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-            this.memoryProjects = sorted;
-            safeStorage.setItem(PROJECTS_KEY, JSON.stringify(sorted));
-            this.cloudLoaded = true;
-            this.cloudError = null;
-            this.notify();
+        const list: Project[] = [];
+        snap.forEach(d => {
+          const data = d.data() as Project;
+          if (data && data.id) {
+            list.push(data);
           }
-        }
+        });
+        const sorted = list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+        this.memoryProjects = sorted;
+        safeStorage.setItem(PROJECTS_KEY, JSON.stringify(sorted));
+        this.cloudLoaded = true;
+        this.cloudError = null;
+        console.log(`[Firestore] Listener updated: projects (${sorted.length} projects)`);
+        this.notify();
       }, (err) => {
-        console.warn('Realtime cloud projects sync listener note:', err);
+        console.warn('[Firestore] Projects listener error:', err);
         this.cloudError = 'Projects sync issue: ' + err.message;
       });
       unsubs.push(unsubProjects);
 
       // 3. Experiences real-time listener (experiences)
       const unsubExp = onSnapshot(collection(db, 'experiences'), (snap) => {
-        if (!snap.empty) {
-          const list: ExperienceItem[] = [];
-          snap.forEach(d => list.push(d.data() as ExperienceItem));
-          if (list.length > 0) {
-            this.memoryExperience = list;
-            safeStorage.setItem(EXPERIENCE_KEY, JSON.stringify(list));
-            this.cloudLoaded = true;
-            this.notify();
-          }
-        }
+        const list: ExperienceItem[] = [];
+        snap.forEach(d => list.push(d.data() as ExperienceItem));
+        this.memoryExperience = list;
+        safeStorage.setItem(EXPERIENCE_KEY, JSON.stringify(list));
+        this.cloudLoaded = true;
+        console.log(`[Firestore] Listener updated: experiences (${list.length} items)`);
+        this.notify();
       }, (err) => {
-        console.warn('Realtime cloud experiences sync listener note:', err);
+        console.warn('[Firestore] Experiences listener error:', err);
       });
       unsubs.push(unsubExp);
 
       // 4. Skills real-time listener (skills)
       const unsubSkills = onSnapshot(collection(db, 'skills'), (snap) => {
-        if (!snap.empty) {
-          const list: SkillCategory[] = [];
-          snap.forEach(d => list.push(d.data() as SkillCategory));
-          if (list.length > 0) {
-            this.memorySkills = list;
-            safeStorage.setItem(SKILLS_KEY, JSON.stringify(list));
-            this.cloudLoaded = true;
-            this.notify();
-          }
-        }
+        const list: SkillCategory[] = [];
+        snap.forEach(d => list.push(d.data() as SkillCategory));
+        this.memorySkills = list;
+        safeStorage.setItem(SKILLS_KEY, JSON.stringify(list));
+        this.cloudLoaded = true;
+        console.log(`[Firestore] Listener updated: skills (${list.length} categories)`);
+        this.notify();
       }, (err) => {
-        console.warn('Realtime cloud skills sync listener note:', err);
+        console.warn('[Firestore] Skills listener error:', err);
       });
       unsubs.push(unsubSkills);
 
       // 5. Education real-time listener (education)
       const unsubEducation = onSnapshot(collection(db, 'education'), (snap) => {
-        if (!snap.empty) {
-          const list: EducationItem[] = [];
-          snap.forEach(d => list.push(d.data() as EducationItem));
-          if (list.length > 0) {
-            this.memoryEducation = list;
-            safeStorage.setItem(EDUCATION_KEY, JSON.stringify(list));
-            this.cloudLoaded = true;
-            this.notify();
-          }
-        }
+        const list: EducationItem[] = [];
+        snap.forEach(d => list.push(d.data() as EducationItem));
+        this.memoryEducation = list;
+        safeStorage.setItem(EDUCATION_KEY, JSON.stringify(list));
+        this.cloudLoaded = true;
+        console.log(`[Firestore] Listener updated: education (${list.length} items)`);
+        this.notify();
       }, (err) => {
-        console.warn('Realtime cloud education sync listener note:', err);
+        console.warn('[Firestore] Education listener error:', err);
       });
       unsubs.push(unsubEducation);
 
       // 6. Media Assets real-time listener (media_assets)
       const unsubMedia = onSnapshot(collection(db, 'media_assets'), (snap) => {
-        if (!snap.empty) {
-          const list: MediaAsset[] = [];
-          snap.forEach(d => list.push(d.data() as MediaAsset));
-          this.memoryMedia = list;
-          safeStorage.setItem(MEDIA_KEY, JSON.stringify(list));
-          this.cloudLoaded = true;
-          this.notify();
-        }
+        const list: MediaAsset[] = [];
+        snap.forEach(d => list.push(d.data() as MediaAsset));
+        this.memoryMedia = list;
+        safeStorage.setItem(MEDIA_KEY, JSON.stringify(list));
+        this.cloudLoaded = true;
+        console.log(`[Firestore] Listener updated: media (${list.length} assets)`);
+        this.notify();
       }, (err) => {
-        console.warn('Realtime cloud media sync listener note:', err);
+        console.warn('[Firestore] Media listener error:', err);
       });
       unsubs.push(unsubMedia);
 
@@ -272,6 +261,7 @@ class StorageService {
   async loadFromCloud(): Promise<boolean> {
     if (this.isSyncing) return this.cloudLoaded;
     this.isSyncing = true;
+    console.log('[Firestore] Loading portfolio');
 
     try {
       let hasLoadedAny = false;
@@ -407,6 +397,7 @@ class StorageService {
       if (hasLoadedAny) {
         this.cloudLoaded = true;
         this.cloudError = null;
+        console.log('[Firestore] Portfolio loaded');
         this.notify();
         return true;
       }
@@ -477,6 +468,8 @@ class StorageService {
     if (!project.id) throw new Error('Missing project ID');
     if (!project.title?.trim()) throw new Error('Project title is required');
 
+    console.log(`[Firestore] Saving project: ${project.id} ("${project.title}")`);
+
     const projects = [...this.getProjects()];
     const existingIndex = projects.findIndex(p => p.id === project.id);
     const updatedProject: Project = {
@@ -496,8 +489,9 @@ class StorageService {
       try {
         const ref = doc(db, 'projects', updatedProject.id);
         await setDoc(ref, cleaned, { merge: true });
+        console.log(`[Firestore] Project saved successfully: ${updatedProject.id}`);
       } catch (err: any) {
-        console.error('Firestore saveProject error:', err);
+        console.error(`[Firestore] Save failed: ${err.message || 'Unknown error'}`);
         throw new Error(`Firestore save failed: ${err.message || 'Unknown error'}`);
       }
     }

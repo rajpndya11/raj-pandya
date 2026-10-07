@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowUpRight, Sun, Moon } from 'lucide-react';
+import { Menu, X, ArrowUpRight, Sun, Moon, Sparkles } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 
 interface NavbarProps {
   currentPath: string;
   onNavigate: (path: string) => void;
   onOpenConnect: () => void;
+  onOpenChat?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenConnect }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenConnect, onOpenChat }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Theme state: 'ivory' (default light) or 'midnight' (dark)
