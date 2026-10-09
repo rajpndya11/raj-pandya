@@ -19,8 +19,10 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({ isOpen, onClose }) =
   if (!isOpen) return null;
 
   const emailAddress = profile?.email || 'rajpandya1131@gmail.com';
-  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/raj-pandya-pm';
-  const linkedinDisplayName = profile?.linkedinName || 'LinkedIn';
+  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/rajpandya-product-management/';
+  const linkedinDisplayName = profile?.linkedinName?.trim() && !profile.linkedinName.includes('http') && !profile.linkedinName.includes('linkedin.com')
+    ? profile.linkedinName
+    : 'Raj Pandya';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(emailAddress);

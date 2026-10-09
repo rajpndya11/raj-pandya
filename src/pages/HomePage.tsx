@@ -11,7 +11,8 @@ import {
   Compass, 
   BarChart3, 
   Briefcase,
-  Quote 
+  Quote,
+  Linkedin 
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { BlurImage } from '../components/BlurImage';
@@ -115,7 +116,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
                 <a
-                  href={profile.resumeUrl || '/api/resume/download'}
+                  href={profile.secondaryCtaText ? (profile.resumeUrl || '/api/resume/download') : '/api/resume/download'}
                   download={`${(profile.name || 'Raj_Pandya').replace(/\s+/g, '_')}_Product_Manager_Resume.pdf`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -139,6 +140,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                   className="inline-flex items-center justify-center px-7 py-3 rounded-full text-xs font-bold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#2A2E2C] hover:border-[#B08D57] border border-[#383C39] transition-all cursor-pointer shadow-sm select-none"
                 >
                   <span>{profile.secondaryCtaText || 'DOWNLOAD RESUME'}</span>
+                </a>
+                <a
+                  href={profile.linkedin || 'https://www.linkedin.com/in/rajpandya-product-management/'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold tracking-wider uppercase bg-white text-[#0A66C2] hover:bg-[#0A66C2] hover:text-white border border-[#DED8CC] hover:border-[#0A66C2] transition-all cursor-pointer shadow-sm select-none"
+                  title="Connect with Raj Pandya on LinkedIn"
+                >
+                  <Linkedin className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{profile.linkedinName && !profile.linkedinName.includes('http') && !profile.linkedinName.includes('linkedin.com') ? profile.linkedinName : 'Raj Pandya'}</span>
                 </a>
               </div>
             </motion.div>

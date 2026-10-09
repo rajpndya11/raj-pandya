@@ -40,12 +40,40 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const unsubs: (() => void)[] = [];
+
+    // Always listen to local/storageService events (cross-tab and instant in-tab updates)
+    const unsubStorage = storageService.onUpdate(() => {
+      const updatedProfile = storageService.getProfile();
+      if (updatedProfile && updatedProfile.name) {
+        setProfile(updatedProfile);
+      }
+      setProjects(storageService.getProjects());
+      setExperiences(storageService.getExperience());
+      setEducation(storageService.getEducation());
+      setSkills(storageService.getSkills());
+      setMediaAssets(storageService.getMediaAssets());
+    });
+    unsubs.push(unsubStorage);
+
+    // Initial check from backend API
+    fetch('/api/profile')
+      .then(res => res.json())
+      .then(json => {
+        if (json?.data?.name) {
+          setProfile(json.data);
+          safeStorage.setItem('rp_portfolio_profile', JSON.stringify(json.data));
+        }
+      })
+      .catch(() => {});
+
     if (!db) {
       setIsLoading(false);
-      return;
+      return () => {
+        unsubs.forEach(u => u());
+      };
     }
 
-    const unsubs: (() => void)[] = [];
     let initialLoadsRemaining = 6;
 
     const checkInitialLoaded = () => {

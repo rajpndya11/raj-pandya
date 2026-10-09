@@ -22,8 +22,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     if (profile?.linkedin) setCustomUrl(profile.linkedin);
   }, [profile?.linkedinName, profile?.linkedin]);
 
-  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/raj-pandya-pm';
-  const linkedinDisplayName = profile?.linkedinName || (profile?.linkedin ? profile.linkedin.replace(/^https?:\/\/(www\.)?/, '') : 'linkedin.com/in/raj-pandya-pm');
+  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/rajpandya-product-management/';
+  const linkedinDisplayName = profile?.linkedinName?.trim() && !profile.linkedinName.includes('http') && !profile.linkedinName.includes('linkedin.com')
+    ? profile.linkedinName
+    : 'Raj Pandya';
   const emailAddress = profile?.email || 'rajpandya1131@gmail.com';
   const location = profile?.location || 'Mumbai, India';
 
@@ -144,24 +146,26 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   href={linkedinUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-[#EFE9DC] hover:text-[#B08D57] transition-colors truncate flex-1"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#232724] hover:bg-[#0A66C2] text-[#F7F4ED] hover:text-white border border-[#383C39] hover:border-[#0A66C2] transition-all truncate group/link"
+                  title="Connect with Raj Pandya on LinkedIn"
                 >
-                  <Linkedin className="w-3.5 h-3.5 text-[#B08D57] flex-shrink-0" />
-                  <span className="truncate">{linkedinDisplayName}</span>
+                  <Linkedin className="w-3.5 h-3.5 text-[#0A66C2] group-hover/link:text-white flex-shrink-0 transition-colors" />
+                  <span className="font-semibold text-xs truncate">{linkedinDisplayName}</span>
+                  <ExternalLink className="w-2.5 h-2.5 text-[#77736B] group-hover/link:text-white/80 opacity-70" />
                 </a>
                 <button
                   type="button"
                   onClick={() => {
-                    setCustomName(profile?.linkedinName || linkedinDisplayName);
+                    setCustomName(profile?.linkedinName || 'Raj Pandya');
                     setCustomUrl(profile?.linkedin || linkedinUrl);
                     setIsEditingLinkedIn(true);
                   }}
                   className="opacity-70 group-hover:opacity-100 hover:text-[#B08D57] text-[#77736B] p-1 transition-opacity text-[11px] flex items-center gap-1 cursor-pointer bg-[#232724] hover:bg-[#2A2E2C] rounded-md px-1.5 py-0.5"
-                  title="Rename LinkedIn Name and update URL"
-                  aria-label="Rename LinkedIn Name and update URL"
+                  title="Rename LinkedIn Name or update URL"
+                  aria-label="Rename LinkedIn Name or update URL"
                 >
                   <Edit3 className="w-2.5 h-2.5" />
-                  <span className="text-[10px]">Rename</span>
+                  <span className="text-[10px]">Edit Link</span>
                 </button>
               </li>
             </ul>

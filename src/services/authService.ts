@@ -98,7 +98,7 @@ export const authService = {
         await signOut(auth);
         inMemoryAuth = false;
         throw new Error(
-          `Access Denied: "${user.email}" is not on the authorized administrators list. Only authorized owners (${BOOTSTRAP_ADMIN_EMAIL}) are permitted.`
+          'Access Denied: Account not authorized for administrative access. Only verified portfolio owners have access clearance.'
         );
       }
 

@@ -7,6 +7,7 @@ import {
   Trash2, 
   Copy, 
   Eye, 
+  EyeOff,
   Check, 
   X, 
   Download, 
@@ -83,6 +84,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [passcode, setPasscode] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showPasscodeFallback, setShowPasscodeFallback] = useState(false);
+  const [showPasscodeText, setShowPasscodeText] = useState(false);
   
   // Dashboard navigation tab
   const [activeTab, setActiveTab] = useState<AdminTab>('projects');
@@ -219,7 +221,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       setLoginError('');
       loadData();
     } else {
-      setLoginError('Invalid secret passcode. Default is "raj1131".');
+      setLoginError('Invalid secret passcode. Please try again.');
     }
   };
 
@@ -869,7 +871,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     try {
       await storageService.saveProfile(profile);
       setLinkedinSaved(true);
-      setTimeout(() => setLinkedinSaved(false), 3000);
+      setProfileSaved(true);
+      setTimeout(() => {
+        setLinkedinSaved(false);
+        setProfileSaved(false);
+      }, 3000);
     } catch (err: any) {
       console.error('Save LinkedIn error:', err);
     }
@@ -997,11 +1003,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
             <div className="p-3 rounded-xl bg-[#171A18] border border-[#2A2E2C] text-[11px] text-[#77736B] space-y-1">
               <div className="flex items-center gap-1.5 text-[#EFE9DC] font-semibold">
-                <Database className="w-3.5 h-3.5 text-[#B08D57]" />
-                <span>Authorized Admin Identity</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-[#B08D57]" />
+                <span>Executive Admin Authentication</span>
               </div>
-              <p>
-                Access clearance verified for: <strong className="text-[#F7F4ED] font-mono">{BOOTSTRAP_ADMIN_EMAIL}</strong>
+              <p className="text-[#8E8A82]">
+                Restricted access. Sign in with your verified owner credentials.
               </p>
             </div>
 
@@ -1038,14 +1044,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[#EFE9DC] mb-1.5">
                   Master Passcode
                 </label>
-                <input
-                  type="password"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Enter passcode (default: raj1131)"
-                  className="w-full px-4 py-3 rounded-xl bg-[#171A18] border border-[#2A2E2C] text-sm text-[#F7F4ED] placeholder-[#77736B] focus:border-[#B08D57] outline-none transition-colors"
-                  autoFocus
-                />
+                <div className="relative">
+                  <input
+                    type={showPasscodeText ? "text" : "password"}
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="Enter master passcode"
+                    autoComplete="current-password"
+                    className="w-full px-4 py-3 pr-11 rounded-xl bg-[#171A18] border border-[#2A2E2C] text-sm text-[#F7F4ED] placeholder-[#77736B] focus:border-[#B08D57] outline-none transition-colors"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasscodeText(!showPasscodeText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#77736B] hover:text-[#F7F4ED] p-1 cursor-pointer transition-colors"
+                    title={showPasscodeText ? "Hide passcode" : "Show passcode"}
+                    aria-label={showPasscodeText ? "Hide passcode" : "Show passcode"}
+                  >
+                    {showPasscodeText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {loginError && (
                   <p className="text-xs text-rose-400 mt-2 flex items-center gap-1.5">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -2301,12 +2319,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[#B08D57] text-[#171A18] font-bold text-[10px] flex items-center justify-center">
-                    {currentUser.email ? currentUser.email[0].toUpperCase() : 'A'}
+                    {currentUser.displayName ? currentUser.displayName[0].toUpperCase() : 'R'}
                   </div>
                 )}
                 <div className="text-left">
                   <div className="text-[11px] font-semibold text-[#F7F4ED] leading-none flex items-center gap-1">
-                    <span>{currentUser.displayName || currentUser.email}</span>
+                    <span>{currentUser.displayName || 'Raj Pandya (Administrator)'}</span>
                     <ShieldCheck className="w-3 h-3 text-emerald-400" />
                   </div>
                   <span className="text-[9px] text-emerald-400 uppercase tracking-wider font-mono">
@@ -2403,6 +2421,76 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
           </div>
         </section>
+
+        {/* RESUME & CV BACKEND MANAGEMENT BAR (DIRECT UPLOAD & DOWNLOAD) */}
+        <div className="bg-white rounded-2xl border border-[#DED8CC] p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-[#171A18] text-[#B08D57] flex items-center justify-center flex-shrink-0 shadow-sm">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#B08D57]">
+                  Backend Resume Document
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Ready for Download
+                </span>
+              </div>
+              <h3 className="font-serif font-bold text-sm sm:text-base text-[#171A18] flex items-center gap-2 mt-0.5">
+                <span>Active File:</span>
+                <span className="font-mono text-xs text-[#77736B] truncate max-w-xs md:max-w-md font-normal">
+                  {profile.resumeUrl || '/Raj_Pandya_Product_Manager_Resume.pdf'}
+                </span>
+              </h3>
+              {resumeStatusMessage && (
+                <p className={`text-xs mt-1 ${resumeStatusMessage.startsWith('✓') ? 'text-emerald-700 font-semibold' : 'text-blue-700'}`}>
+                  {resumeStatusMessage}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
+            {/* Quick Upload Button */}
+            <label className={`px-4 py-2.5 rounded-xl ${
+              isUploadingResume 
+                ? 'bg-[#383C39] text-[#A39D91] cursor-not-allowed' 
+                : 'bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] cursor-pointer'
+            } text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-sm`}>
+              {isUploadingResume ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Uploading to Server...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload New Resume PDF</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="application/pdf,.doc,.docx"
+                disabled={isUploadingResume}
+                className="hidden"
+                onChange={handleResumeUpload}
+              />
+            </label>
+
+            {/* Test Download Button */}
+            <a
+              href="/api/resume/download"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-2.5 rounded-xl border border-[#DED8CC] hover:bg-[#EFE9DC] text-[#171A18] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              title="Download currently active resume file"
+            >
+              <Download className="w-3.5 h-3.5 text-[#B08D57]" />
+              <span>Test Download</span>
+            </a>
+          </div>
+        </div>
 
         {/* SIDEBAR NAVIGATION + WORKSPACE CONTAINER */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -3062,7 +3150,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                        Secondary CTA Button Text
+                        Secondary CTA Button Text (Resume Download)
                       </label>
                       <input
                         type="text"
@@ -3070,6 +3158,116 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         onChange={(e) => setProfile({ ...profile, secondaryCtaText: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
                       />
+                    </div>
+                  </div>
+
+                  {/* LinkedIn Hero Button & Footer Link */}
+                  <div className="p-4 rounded-xl bg-[#F7F4ED] border border-[#DED8CC] space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Linkedin className="w-4 h-4 text-[#0A66C2]" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#171A18]">
+                          LinkedIn Button (Hero & Footer)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveLinkedIn}
+                        className="px-4 py-1.5 rounded-lg bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs w-fit"
+                      >
+                        {linkedinSaved ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Saved & Reflected!</span>
+                          </>
+                        ) : (
+                          <span>Save & Reflect LinkedIn</span>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          LinkedIn Display Name (Button Label)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Raj Pandya"
+                          value={profile.linkedinName || ''}
+                          onChange={(e) => setProfile({ ...profile, linkedinName: e.target.value })}
+                          className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                        <span className="text-[10px] text-[#77736B]">Shows next to LinkedIn icon in Hero & Footer</span>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          LinkedIn Profile URL
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="https://www.linkedin.com/in/..."
+                          value={profile.linkedin || ''}
+                          onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
+                          className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                        <span className="text-[10px] text-[#77736B]">Destination link when clicking the button</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Resume Upload inside Home Page editor */}
+                  <div className="p-4 rounded-xl bg-white border border-[#DED8CC] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#B08D57]" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#171A18]">
+                          Resume PDF for "DOWNLOAD RESUME" Button
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <input
+                        type="text"
+                        placeholder="Resume URL (/uploads/... or https://...)"
+                        value={profile.resumeUrl || ''}
+                        onChange={(e) => setProfile({ ...profile, resumeUrl: e.target.value })}
+                        className="flex-1 p-2.5 rounded-lg border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                      />
+                      <label className={`px-4 py-2 rounded-lg ${
+                        isUploadingResume
+                          ? 'bg-[#383C39] text-[#A39D91] cursor-not-allowed'
+                          : 'bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] cursor-pointer'
+                      } text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-xs whitespace-nowrap`}>
+                        {isUploadingResume ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Upload Resume</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="application/pdf,.doc,.docx"
+                          disabled={isUploadingResume}
+                          className="hidden"
+                          onChange={handleResumeUpload}
+                        />
+                      </label>
+                      <a
+                        href="/api/resume/download"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-2 rounded-lg border border-[#DED8CC] hover:bg-[#EFE9DC] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#B08D57]" />
+                        <span>Test Download</span>
+                      </a>
                     </div>
                   </div>
                 </div>
