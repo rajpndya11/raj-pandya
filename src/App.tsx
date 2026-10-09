@@ -12,7 +12,6 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { AdminPage } from './pages/AdminPage';
 import { storageService } from './services/storageService';
 import { PortfolioProvider } from './context/PortfolioContext';
-import { PortfolioChatbot } from './components/PortfolioChatbot';
 
 // Robust Error Boundary to guarantee the screen never stays blank
 interface ErrorBoundaryProps {
@@ -98,7 +97,6 @@ export default function App() {
 
   const [currentPath, setCurrentPath] = useState<string>(getInitialPath);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     // Initialize theme from storage
@@ -223,61 +221,52 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col bg-[#F7F4ED] text-[#171A18] selection:bg-[#B08D57]/30 selection:text-[#171A18]">
-        
-        {/* Subtle Gold Viewport Scroll Progress Bar */}
-        <ScrollProgressBar />
+      <PortfolioProvider>
+        <div className="min-h-screen flex flex-col bg-[#F7F4ED] text-[#171A18] selection:bg-[#B08D57]/30 selection:text-[#171A18]">
+          
+          {/* Subtle Gold Viewport Scroll Progress Bar */}
+          <ScrollProgressBar />
 
-        {/* Global Navbar (Only on public routes, hidden in admin) */}
-        {!isAdminRoute && (
-          <Navbar 
-            currentPath={currentPath}
-            onNavigate={navigate}
-            onOpenConnect={() => setIsConnectOpen(true)}
-            onOpenChat={() => setIsChatOpen(true)}
+          {/* Global Navbar (Only on public routes, hidden in admin) */}
+          {!isAdminRoute && (
+            <Navbar 
+              currentPath={currentPath}
+              onNavigate={navigate}
+              onOpenConnect={() => setIsConnectOpen(true)}
+            />
+          )}
+
+          {/* Main Page Canvas with Subtle Transition */}
+          <main className="flex-1">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPath}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                {renderCurrentView()}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+
+          {/* Global Classic Editorial Footer (Hidden in admin) */}
+          {!isAdminRoute && (
+            <Footer 
+              onNavigate={navigate}
+              onOpenConnect={() => setIsConnectOpen(true)}
+            />
+          )}
+
+          {/* Connect Modal */}
+          <ConnectModal 
+              isOpen={isConnectOpen} 
+              onClose={() => setIsConnectOpen(false)} 
           />
-        )}
 
-        {/* Main Page Canvas with Subtle Transition */}
-        <main className="flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentPath}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              {renderCurrentView()}
-            </motion.div>
-          </AnimatePresence>
-        </main>
-
-        {/* Global Classic Editorial Footer (Hidden in admin) */}
-        {!isAdminRoute && (
-          <Footer 
-            onNavigate={navigate}
-            onOpenConnect={() => setIsConnectOpen(true)}
-          />
-        )}
-
-        {/* Connect Modal */}
-        <ConnectModal 
-            isOpen={isConnectOpen} 
-            onClose={() => setIsConnectOpen(false)} 
-        />
-
-        {/* Gemini AI Portfolio Chatbot (Always live synced with Firestore) */}
-        {!isAdminRoute && (
-          <PortfolioChatbot 
-            isOpen={isChatOpen}
-            onOpen={() => setIsChatOpen(true)}
-            onClose={() => setIsChatOpen(false)}
-            currentPath={currentPath}
-          />
-        )}
-
-      </div>
+        </div>
+      </PortfolioProvider>
     </ErrorBoundary>
   );
 }

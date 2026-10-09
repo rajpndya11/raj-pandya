@@ -4,7 +4,6 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, initializeFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
-import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 // Runtime Environment requires Express to run on Port 3000 behind Nginx (port 8080)
@@ -332,246 +331,180 @@ app.delete('/api/media/:id', async (req, res) => {
   }
 });
 
-// ==========================================
-// GEMINI AI PORTFOLIO CHATBOT
-// Live synced with Firestore portfolio changes
-// ==========================================
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
-
-// Build fresh knowledge base directly from live Firestore state
-async function getLivePortfolioContext() {
-  let profileData: any = null;
-  const projectsData: any[] = [];
-  const expData: any[] = [];
-  const skillsData: any[] = [];
-  const eduData: any[] = [];
-
-  if (db) {
-    try {
-      const pSnap = await getDoc(doc(db, 'site_content', 'main_profile'));
-      if (pSnap.exists()) profileData = pSnap.data();
-    } catch (e) {
-      console.warn('Error reading live profile for AI:', e);
-    }
-
-    try {
-      const prSnap = await getDocs(collection(db, 'projects'));
-      prSnap.forEach(d => {
-        const item = d.data();
-        if (item) projectsData.push(item);
-      });
-      projectsData.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-    } catch (e) {
-      console.warn('Error reading live projects for AI:', e);
-    }
-
-    try {
-      const eSnap = await getDocs(collection(db, 'experiences'));
-      eSnap.forEach(d => expData.push(d.data()));
-    } catch (e) {
-      console.warn('Error reading live experiences for AI:', e);
-    }
-
-    try {
-      const sSnap = await getDocs(collection(db, 'skills'));
-      sSnap.forEach(d => skillsData.push(d.data()));
-    } catch (e) {
-      console.warn('Error reading live skills for AI:', e);
-    }
-
-    try {
-      const edSnap = await getDocs(collection(db, 'education'));
-      edSnap.forEach(d => eduData.push(d.data()));
-    } catch (e) {
-      console.warn('Error reading live education for AI:', e);
-    }
-  }
-
-  let context = `=== RAJ PANDYA: EXECUTIVE PRODUCT MANAGER & GROWTH LEADER ===\n`;
-  if (profileData) {
-    context += `Name: ${profileData.name || 'Raj Pandya'}\n`;
-    context += `Headline: ${profileData.headline || ''}\n`;
-    context += `Title: ${profileData.title || ''}\n`;
-    context += `Bio / Summary: ${profileData.summary || ''}\n`;
-    context += `Email: ${profileData.email || 'gpl.raj@firsteconomy.com'}\n`;
-    context += `Phone: ${profileData.phone || ''}\n`;
-    context += `Location: ${profileData.location || ''}\n`;
-    if (profileData.socialLinks) {
-      context += `Social Links: LinkedIn (${profileData.socialLinks.linkedin || ''}), GitHub (${profileData.socialLinks.github || ''}), Twitter (${profileData.socialLinks.twitter || ''})\n`;
-    }
-    if (profileData.resumeUrl) {
-      context += `Resume Link: Available on portfolio\n`;
-    }
-    if (profileData.metrics?.length) {
-      context += `Featured Profile Metrics:\n`;
-      profileData.metrics.forEach((m: any) => {
-        context += `- ${m.label}: ${m.value} (${m.sub || ''})\n`;
-      });
-    }
-    if (profileData.pillars?.length) {
-      context += `Core Strategic Pillars:\n`;
-      profileData.pillars.forEach((p: any) => {
-        context += `- ${p.title} [${p.category}]: ${p.description}\n`;
-      });
-    }
-  }
-
-  context += `\n=== PROJECTS & CASE STUDIES (${projectsData.length} Total) ===\n`;
-  projectsData.forEach((p: any, idx: number) => {
-    context += `\n[Project ${idx + 1}: ${p.title}]\n`;
-    context += `Subtitle: ${p.subtitle || ''}\n`;
-    context += `Category: ${p.category || ''} | Status: ${p.status || 'Published'} | Role: ${p.role || ''} | Period: ${p.period || ''}\n`;
-    if (p.impact) context += `Impact Summary: ${p.impact}\n`;
-    if (p.metrics?.length) {
-      context += `Key Metrics / Measured Results:\n`;
-      p.metrics.forEach((m: any) => context += `  * ${m.label}: ${m.value} - ${m.detail || ''}\n`);
-    }
-    if (p.problem) context += `Problem: ${p.problem}\n`;
-    if (p.objectives) context += `Objectives: ${p.objectives}\n`;
-    if (p.userResearch) context += `User Research: ${p.userResearch}\n`;
-    if (p.targetAudience) context += `Target Audience: ${p.targetAudience}\n`;
-    if (p.painPoints) context += `Pain Points: ${p.painPoints}\n`;
-    if (p.strategy) context += `Product Strategy: ${p.strategy}\n`;
-    if (p.solution) context += `Solution Delivered: ${p.solution}\n`;
-    if (p.experimentation) context += `Experimentation & A/B Testing: ${p.experimentation}\n`;
-    if (p.outcome) context += `Measurable Outcome: ${p.outcome}\n`;
-    if (p.learnings) context += `Retrospective Learnings: ${p.learnings}\n`;
-    if (p.links?.length) {
-      context += `Artifact Links:\n`;
-      p.links.forEach((l: any) => context += `  * ${l.type} - ${l.label}: ${l.url}\n`);
-    }
-  });
-
-  context += `\n=== CAREER EXPERIENCE (${expData.length} Roles) ===\n`;
-  expData.forEach((e: any) => {
-    context += `\n- Company: ${e.company}\n  Role: ${e.role}\n  Period: ${e.period}\n  Location: ${e.location || ''}\n  Summary: ${e.description || ''}\n`;
-    if (e.achievements?.length) {
-      context += `  Key Achievements:\n`;
-      e.achievements.forEach((a: string) => context += `    * ${a}\n`);
-    }
-  });
-
-  context += `\n=== SKILLS & CAPABILITIES (${skillsData.length} Categories) ===\n`;
-  skillsData.forEach((s: any) => {
-    context += `- ${s.name}: ${(s.skills || []).join(', ')} (${s.description || ''})\n`;
-  });
-
-  context += `\n=== EDUCATION (${eduData.length} Entries) ===\n`;
-  eduData.forEach((ed: any) => {
-    context += `- ${ed.degree} at ${ed.institution} (${ed.period}) - Score: ${ed.score || 'First Class'}. Details: ${ed.details || ''}\n`;
-  });
-
-  return context;
+// Ensure public/uploads directory exists
+const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Multi-Turn Chat Endpoint (Supports both paths and health checks)
-app.get(['/api/chat', '/api/chat/'], (req, res) => {
-  res.json({ status: 'ok', endpoint: '/api/chat', method: 'POST required' });
-});
+// ==========================================
+// RESUME UPLOAD & DOWNLOAD API
+// ==========================================
 
-app.post(['/api/chat', '/api/chat/'], async (req, res) => {
+// Dedicated Resume Download with proper Content-Disposition header
+app.get('/api/resume/download', async (req, res) => {
   try {
-    const { messages, currentPath } = req.body;
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ success: false, error: 'Messages array is required' });
-    }
+    let candidatePath = path.resolve(process.cwd(), 'public', 'Raj_Pandya_Product_Manager_Resume.pdf');
+    let downloadFileName = 'Raj_Pandya_Product_Manager_Resume.pdf';
 
-    // Pull authoritative live data from Firestore
-    const liveContext = await getLivePortfolioContext();
-
-    const systemInstruction = `You are the official AI Assistant for Raj Pandya's Executive Product Management, Growth & AI Portfolio.
-Your goal is to represent Raj Pandya accurately, eloquently, and knowledgeably to recruiters, hiring managers, founders, collaborators, and visitors.
-
-AUTHORITATIVE PORTFOLIO KNOWLEDGE BASE:
-${liveContext}
-
-CRITICAL RULES:
-1. STRICT ADHERENCE TO PORTFOLIO FACTS: Only answer using facts, achievements, metrics, frameworks, and roles stated in Raj's live portfolio above. Do NOT make up, extrapolate, or hallucinate credentials or work experience.
-2. PROFESSIONAL TONE: Speak with the clear, structured clarity of a senior Principal Product Manager / Growth Lead. Use crisp bullet points, bold quantifiable metrics (e.g. +24% conversion lift, ₹180M GMV, 14-day cycle time reduction), and structured takeaways where suitable.
-3. CONTEXT AWARENESS: The user is currently browsing "${currentPath || '/'}". If they ask about what is on this page or ask questions, orient your answer relevantly to this context.
-4. OUT-OF-SCOPE QUESTIONS: If asked about topics completely unrelated to Raj Pandya's career, portfolio, product management, or technology, or if asked something not documented in his portfolio, politely state what is known from Raj's portfolio and invite them to connect directly with Raj.
-5. NO TECHNICAL/DATABASE MENTIONS: Never mention internal implementation or storage terms such as "Firestore", "database", "live synced data", "JSON", or backend APIs to the visitor. Speak naturally and directly as Raj's executive product assistant.
-6. SUGGESTED QUESTIONS: At the VERY END of EVERY response, output exactly 2 or 3 compelling, short follow-up questions that the user would naturally want to ask next, prefixed exactly with:
-SUGGESTED_QUESTIONS: [Question 1] | [Question 2] | [Question 3]`;
-
-    // Map conversation turns to Gemini API format
-    const contents = messages.map((m: any) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: String(m.content || '') }]
-    }));
-
-    // Call Gemini API with fast and robust fallback
-    let responseText = '';
-    const modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
-    let lastError: any = null;
-
-    for (const modelName of modelsToTry) {
+    if (db) {
       try {
-        const genResponse = await ai.models.generateContent({
-          model: modelName,
-          contents,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-            topP: 0.95
+        const docSnap = await getDoc(doc(db, 'site_content', 'main_profile'));
+        if (docSnap.exists()) {
+          const profileData = docSnap.data();
+          if (profileData?.resumeUrl) {
+            const resumeUrl = String(profileData.resumeUrl).trim();
+            if (resumeUrl.startsWith('http://') || resumeUrl.startsWith('https://')) {
+              return res.redirect(resumeUrl);
+            }
+            const cleanRel = resumeUrl.replace(/^\//, '');
+            const targetPath = path.resolve(process.cwd(), 'public', cleanRel);
+            if (fs.existsSync(targetPath)) {
+              candidatePath = targetPath;
+              downloadFileName = path.basename(targetPath);
+            }
           }
-        });
-        if (genResponse && genResponse.text) {
-          responseText = genResponse.text;
-          break;
         }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Gemini model ${modelName} notice:`, err.message);
+      } catch (err) {
+        console.warn('Resume download profile lookup notice:', err);
       }
     }
 
-    if (!responseText) {
-      throw lastError || new Error('No response generated by AI model');
+    if (fs.existsSync(candidatePath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadFileName}"`);
+      return res.sendFile(candidatePath);
+    }
+    return res.status(404).json({ success: false, error: 'Resume PDF not found on server' });
+  } catch (err: any) {
+    console.error('Error in /api/resume/download:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Backend Resume Upload Endpoint
+app.post('/api/upload/resume', async (req, res) => {
+  try {
+    const { fileName, fileData, mimeType } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ success: false, error: 'Missing fileData payload' });
     }
 
-    // Extract suggested questions from response
-    let reply = responseText;
-    let suggestedQuestions: string[] = [];
+    // Extract base64 payload
+    const base64Content = fileData.includes(',') ? fileData.split(',')[1] : fileData;
+    const buffer = Buffer.from(base64Content, 'base64');
 
-    const marker = 'SUGGESTED_QUESTIONS:';
-    const markerIndex = reply.lastIndexOf(marker);
-    if (markerIndex !== -1) {
-      const rawSuggestions = reply.substring(markerIndex + marker.length).trim();
-      reply = reply.substring(0, markerIndex).trim();
-      suggestedQuestions = rawSuggestions
-        .split('|')
-        .map(q => q.trim().replace(/^[-*•\d.]+\s*/, '').replace(/^[?"']+|[?"']+$/g, ''))
-        .filter(q => q.length > 5 && q.length < 120);
+    if (buffer.length === 0) {
+      return res.status(400).json({ success: false, error: 'Uploaded file buffer is empty' });
     }
 
-    if (suggestedQuestions.length === 0) {
-      suggestedQuestions = [
-        "Tell me about the Godrej Properties case study",
-        "What are Raj's key metrics & results?",
-        "How can I get in touch with Raj?"
-      ];
+    // Generate safe filename with timestamp
+    const originalName = fileName || 'Raj_Pandya_Product_Manager_Resume.pdf';
+    const ext = path.extname(originalName) || '.pdf';
+    const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const targetFileName = `${baseName}_${Date.now()}${ext}`;
+
+    const filePath = path.join(uploadsDir, targetFileName);
+    fs.writeFileSync(filePath, buffer);
+
+    // Also overwrite default public/Raj_Pandya_Product_Manager_Resume.pdf so standard links update instantly
+    if (ext.toLowerCase() === '.pdf') {
+      try {
+        fs.writeFileSync(path.resolve(process.cwd(), 'public', 'Raj_Pandya_Product_Manager_Resume.pdf'), buffer);
+      } catch (copyErr) {
+        console.warn('Could not overwrite default resume file:', copyErr);
+      }
+    }
+
+    const publicUrl = `/uploads/${targetFileName}`;
+
+    // Update Firestore main_profile document directly on server
+    if (db) {
+      try {
+        await setDoc(doc(db, 'site_content', 'main_profile'), {
+          resumeUrl: publicUrl,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        // Track in media_assets collection
+        const mediaId = `media-resume-${Date.now()}`;
+        await setDoc(doc(db, 'media_assets', mediaId), {
+          id: mediaId,
+          name: originalName,
+          url: publicUrl,
+          type: mimeType || 'application/pdf',
+          size: buffer.length,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (dbErr) {
+        console.warn('Firestore update on resume upload notice:', dbErr);
+      }
+    }
+
+    console.log(`✓ Resume uploaded successfully to ${publicUrl} (${buffer.length} bytes)`);
+
+    res.json({
+      success: true,
+      url: publicUrl,
+      fileName: targetFileName,
+      originalName,
+      size: buffer.length,
+      message: 'Resume uploaded and saved to backend successfully'
+    });
+  } catch (err: any) {
+    console.error('API /api/upload/resume error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// General File Upload Endpoint
+app.post('/api/upload', async (req, res) => {
+  try {
+    const { fileName, fileData, mimeType, category } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ success: false, error: 'Missing fileData payload' });
+    }
+
+    const base64Content = fileData.includes(',') ? fileData.split(',')[1] : fileData;
+    const buffer = Buffer.from(base64Content, 'base64');
+
+    const originalName = fileName || `asset_${Date.now()}`;
+    const ext = path.extname(originalName) || '';
+    const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const targetFileName = `${baseName}_${Date.now()}${ext}`;
+
+    const filePath = path.join(uploadsDir, targetFileName);
+    fs.writeFileSync(filePath, buffer);
+
+    const publicUrl = `/uploads/${targetFileName}`;
+
+    if (db) {
+      try {
+        const mediaId = `media-${Date.now()}`;
+        await setDoc(doc(db, 'media_assets', mediaId), {
+          id: mediaId,
+          name: originalName,
+          url: publicUrl,
+          type: mimeType || 'application/octet-stream',
+          category: category || 'general',
+          size: buffer.length,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (dbErr) {
+        console.warn('Firestore media_assets notice on upload:', dbErr);
+      }
     }
 
     res.json({
       success: true,
-      reply,
-      suggestedQuestions
+      url: publicUrl,
+      fileName: targetFileName,
+      size: buffer.length,
+      message: 'File uploaded successfully'
     });
   } catch (err: any) {
-    console.error('Chat endpoint error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to generate AI response'
-    });
+    console.error('API /api/upload error:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -580,6 +513,10 @@ SUGGESTED_QUESTIONS: [Question 1] | [Question 2] | [Question 3]`;
 // ==========================================
 
 async function startServer() {
+  // Serve static assets from public directory (PDFs, icons, images)
+  const publicPath = path.resolve(process.cwd(), 'public');
+  app.use(express.static(publicPath));
+
   if (!isProduction) {
     // Development mode: Mount Vite middleware on Express
     const vite = await createViteServer({

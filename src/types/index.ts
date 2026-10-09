@@ -182,6 +182,7 @@ export interface ProfileContent {
   // Contact & Meta
   email: string;
   linkedin: string;
+  linkedinName?: string;
   location: string;
   availabilityStatus?: string;
   // Page Headers

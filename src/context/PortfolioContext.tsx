@@ -267,7 +267,24 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
 export const usePortfolio = (): PortfolioContextType => {
   const context = useContext(PortfolioContext);
   if (!context) {
-    throw new Error('usePortfolio must be used within a PortfolioProvider');
+    // Safe graceful fallback instead of throwing fatal rendering error
+    const defaultProfile = storageService.getProfile();
+    const defaultProjects = storageService.getProjects();
+    const published = defaultProjects.filter(p => p.status === 'Published');
+    return {
+      profile: defaultProfile,
+      projects: defaultProjects,
+      publishedProjects: published.length > 0 ? published : defaultProjects,
+      featuredProjects: defaultProjects.filter(p => p.featured),
+      experiences: storageService.getExperience(),
+      education: storageService.getEducation(),
+      skills: storageService.getSkills(),
+      mediaAssets: storageService.getMediaAssets(),
+      isLoading: false,
+      error: null,
+      getProjectBySlug: (slug: string) => storageService.getProjectBySlug(slug),
+      getProjectById: (id: string) => storageService.getProjectById(id)
+    };
   }
   return context;
 };

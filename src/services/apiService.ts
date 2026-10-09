@@ -194,5 +194,85 @@ export const apiService = {
       console.warn('API deleteMedia error:', err);
       return false;
     }
+  },
+
+  /**
+   * Upload Resume PDF to Backend Server
+   * Writes file directly to disk on server and updates Firestore profile
+   */
+  async uploadResume(file: File): Promise<{ success: boolean; url?: string; fileName?: string; error?: string }> {
+    try {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const dataUrl = e.target?.result as string;
+            const res = await fetch('/api/upload/resume', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: file.name,
+                fileData: dataUrl,
+                mimeType: file.type || 'application/pdf'
+              })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              resolve({ success: true, url: data.url, fileName: data.fileName });
+            } else {
+              resolve({ success: false, error: data.error || 'Upload failed' });
+            }
+          } catch (err: any) {
+            resolve({ success: false, error: err.message || 'Network error during upload' });
+          }
+        };
+        reader.onerror = () => {
+          resolve({ success: false, error: 'Failed to read file from browser' });
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Upload exception' };
+    }
+  },
+
+  /**
+   * Upload general file (images, slide decks, documents) to Backend Server
+   */
+  async uploadFile(file: File, category?: string): Promise<{ success: boolean; url?: string; fileName?: string; error?: string }> {
+    try {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const dataUrl = e.target?.result as string;
+            const res = await fetch('/api/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: file.name,
+                fileData: dataUrl,
+                mimeType: file.type,
+                category
+              })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              resolve({ success: true, url: data.url, fileName: data.fileName });
+            } else {
+              resolve({ success: false, error: data.error || 'Upload failed' });
+            }
+          } catch (err: any) {
+            resolve({ success: false, error: err.message || 'Network error during upload' });
+          }
+        };
+        reader.onerror = () => {
+          resolve({ success: false, error: 'Failed to read file' });
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Upload exception' };
+    }
   }
 };

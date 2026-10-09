@@ -12,9 +12,9 @@ export const INITIAL_PROFILE: ProfileContent = {
   photoTagline: 'Better Products.\nBigger Impact.',
   primaryCtaText: 'View Projects',
   primaryCtaLink: '/projects',
-  secondaryCtaText: 'Download Resume',
+  secondaryCtaText: 'DOWNLOAD RESUME',
   secondaryCtaLink: '',
-  resumeUrl: '',
+  resumeUrl: '/Raj_Pandya_Product_Manager_Resume.pdf',
   aboutEyebrow: 'About Me',
   aboutHeading: 'Turning Ideas into Meaningful Products',
   aboutParagraph1: 'I believe high-performing products sit at the exact intersection of deep customer empathy, rigorous unit economics, and relentless experimentation.',
@@ -65,7 +65,8 @@ export const INITIAL_PROFILE: ProfileContent = {
   projectsPageTitle: 'Featured Work & Case Studies',
   projectsPageDescription: 'Deep dives into product strategy, conversion optimization, workflow automation, and measurable revenue outcomes.',
   email: 'rajpandya1131@gmail.com',
-  linkedin: 'https://www.linkedin.com/in/raj-pandya-pm',
+  linkedin: 'https://www.linkedin.com/in/rajpandya-product-management/',
+  linkedinName: 'linkedin.com/in/rajpandya-product-management',
   location: 'Mumbai, India',
   availabilityStatus: 'Open to Principal & Lead PM roles'
 };

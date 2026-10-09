@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Mail, Linkedin, Copy, Check, Send, MapPin } from 'lucide-react';
+import { usePortfolio } from '../context/PortfolioContext';
 
 interface ConnectModalProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface ConnectModalProps {
 }
 
 export const ConnectModal: React.FC<ConnectModalProps> = ({ isOpen, onClose }) => {
+  const { profile } = usePortfolio();
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -16,7 +18,9 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({ isOpen, onClose }) =
 
   if (!isOpen) return null;
 
-  const emailAddress = 'rajpandya1131@gmail.com';
+  const emailAddress = profile?.email || 'rajpandya1131@gmail.com';
+  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/raj-pandya-pm';
+  const linkedinDisplayName = profile?.linkedinName || 'LinkedIn';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(emailAddress);
@@ -82,13 +86,13 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({ isOpen, onClose }) =
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
             <a
-              href="https://www.linkedin.com/in/raj-pandya-pm"
+              href={linkedinUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#DED8CC] text-[#171A18] hover:bg-white transition-colors"
             >
               <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
-              <span>LinkedIn</span>
+              <span>{linkedinDisplayName}</span>
             </a>
           </div>
         </div>

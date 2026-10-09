@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowUpRight, Sun, Moon, Sparkles } from 'lucide-react';
+import { Menu, X, ArrowUpRight, Sun, Moon } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 
 interface NavbarProps {
   currentPath: string;
   onNavigate: (path: string) => void;
   onOpenConnect: () => void;
-  onOpenChat?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenConnect, onOpenChat }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenConnect }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Theme state: 'ivory' (default light) or 'midnight' (dark)
@@ -136,19 +135,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenC
               )}
             </button>
 
-            {/* Ask AI Button */}
-            {onOpenChat && (
-              <button
-                type="button"
-                onClick={onOpenChat}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B08D57]/60 bg-[#EFE9DC]/60 hover:bg-[#EFE9DC] text-[#171A18] text-xs font-semibold tracking-wider hover:border-[#B08D57] transition-all duration-200 cursor-pointer shadow-xs select-none group"
-                title="Ask Raj's Portfolio AI"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#B08D57] group-hover:rotate-12 transition-transform" />
-                <span className="text-[11px] font-semibold uppercase tracking-wider">Ask AI</span>
-              </button>
-            )}
-
             {/* Let's Connect CTA */}
             <button
               onClick={onOpenConnect}
@@ -227,21 +213,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, onOpenC
               )}
             </button>
           </div>
-
-          {onOpenChat && (
-            <div className="pt-2">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenChat();
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#B08D57] bg-[#EFE9DC] text-[#171A18] hover:bg-[#B08D57] hover:text-[#171A18] transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#B08D57]" />
-                <span>Ask Raj's Portfolio AI</span>
-              </button>
-            </div>
-          )}
 
           <div className="pt-2">
             <button

@@ -14,9 +14,16 @@ import {
   Layers,
   TrendingUp,
   Database,
-  Cpu
+  Cpu,
+  Loader2,
+  Download,
+  ExternalLink,
+  Linkedin,
+  FileText,
+  Check
 } from 'lucide-react';
 import { ProfileContent, ExperienceItem, EducationItem, SkillCategory, PillarItem } from '../../types';
+import { apiService } from '../../services/apiService';
 
 export interface SiteContentEditorProps {
   profile: ProfileContent;
@@ -68,6 +75,31 @@ export const SiteContentEditor: React.FC<SiteContentEditorProps> = ({
   onOpenProjectsTab
 }) => {
   const [newSkillText, setNewSkillText] = useState<{ [catId: string]: string }>({});
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [resumeMsg, setResumeMsg] = useState('');
+
+  const handleDirectResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingResume(true);
+    setResumeMsg(`Uploading ${file.name}...`);
+    try {
+      const res = await apiService.uploadResume(file);
+      if (res.success && res.url) {
+        setProfile({ ...profile, resumeUrl: res.url });
+        setResumeMsg(`✓ "${file.name}" uploaded to backend successfully!`);
+        setTimeout(() => setResumeMsg(''), 5000);
+      } else {
+        setResumeMsg(`Upload failed: ${res.error || 'Server error'}`);
+      }
+    } catch (err: any) {
+      setResumeMsg(`Upload error: ${err.message || 'Failed'}`);
+    } finally {
+      setUploadingResume(false);
+      e.target.value = '';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -322,24 +354,85 @@ export const SiteContentEditor: React.FC<SiteContentEditorProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={profile.secondaryCtaText || 'Download Resume ↓'}
+                  value={profile.secondaryCtaText || 'DOWNLOAD RESUME'}
                   onChange={(e) => setProfile({ ...profile, secondaryCtaText: e.target.value })}
                   className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                Direct Resume PDF URL (Optional - leave empty for auto-generated ATS resume)
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B]">
+                Direct Resume PDF & Backend Upload
               </label>
-              <input
-                type="text"
-                placeholder="https://drive.google.com/... or /resume.pdf"
-                value={profile.resumeUrl || ''}
-                onChange={(e) => setProfile({ ...profile, resumeUrl: e.target.value })}
-                className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
-              />
+
+              {resumeMsg && (
+                <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                  resumeMsg.startsWith('✓') 
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                    : resumeMsg.startsWith('Uploading')
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  {uploadingResume ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" />
+                  ) : resumeMsg.startsWith('✓') ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                  ) : null}
+                  <span>{resumeMsg}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="text"
+                  placeholder="Paste URL or upload to backend (/uploads/...)"
+                  value={profile.resumeUrl || ''}
+                  onChange={(e) => setProfile({ ...profile, resumeUrl: e.target.value })}
+                  className="flex-1 p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+                />
+
+                <label className={`px-4 py-2.5 rounded-xl ${
+                  uploadingResume
+                    ? 'bg-[#383C39] text-[#A39D91] cursor-not-allowed'
+                    : 'bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] cursor-pointer'
+                } text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-xs whitespace-nowrap`}>
+                  {uploadingResume ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Resume</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="application/pdf,.doc,.docx"
+                    disabled={uploadingResume}
+                    className="hidden"
+                    onChange={handleDirectResumeUpload}
+                  />
+                </label>
+              </div>
+
+              {profile.resumeUrl && (
+                <div className="flex items-center gap-2 pt-1 text-xs">
+                  <span className="text-emerald-700 font-medium">Active File:</span>
+                  <span className="font-mono text-[11px] text-[#555] truncate max-w-xs">{profile.resumeUrl}</span>
+                  <a
+                    href={profile.resumeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-auto text-[#B08D57] hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Test Download</span>
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1235,10 +1328,24 @@ export const SiteContentEditor: React.FC<SiteContentEditorProps> = ({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                LinkedIn Display Name (Footer & Bottom)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. linkedin.com/in/raj-pandya-pm or Raj Pandya"
+                value={profile.linkedinName || ''}
+                onChange={(e) => setProfile({ ...profile, linkedinName: e.target.value })}
+                className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
                 LinkedIn Profile URL
               </label>
               <input
                 type="text"
+                placeholder="https://www.linkedin.com/in/..."
                 value={profile.linkedin}
                 onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
                 className="w-full p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"

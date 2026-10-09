@@ -114,18 +114,32 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                   <span>{profile.primaryCtaText || 'View Projects'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  onClick={() => {
-                    if (profile.resumeUrl) {
-                      window.open(profile.resumeUrl, '_blank');
-                    } else {
-                      triggerResumeDownload(profile, experiences);
+                <a
+                  href={profile.resumeUrl || '/api/resume/download'}
+                  download={`${(profile.name || 'Raj_Pandya').replace(/\s+/g, '_')}_Product_Manager_Resume.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    const url = profile.resumeUrl || '/api/resume/download';
+                    if (url.startsWith('http://') || url.startsWith('https://')) {
+                      return;
                     }
+                    // For local file paths or backend endpoint, trigger direct browser download
+                    const directUrl = url.startsWith('/uploads') ? url : '/api/resume/download';
+                    const link = document.createElement('a');
+                    link.href = directUrl;
+                    link.download = `${(profile.name || 'Raj_Pandya').replace(/\s+/g, '_')}_Product_Manager_Resume.pdf`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    e.preventDefault();
                   }}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#DED8CC] text-[#171A18] hover:bg-[#EFE9DC] transition-all cursor-pointer shadow-sm"
+                  className="inline-flex items-center justify-center px-7 py-3 rounded-full text-xs font-bold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#2A2E2C] hover:border-[#B08D57] border border-[#383C39] transition-all cursor-pointer shadow-sm select-none"
                 >
-                  <span>{profile.secondaryCtaText || 'Download Resume ↓'}</span>
-                </button>
+                  <span>{profile.secondaryCtaText || 'DOWNLOAD RESUME'}</span>
+                </a>
               </div>
             </motion.div>
 

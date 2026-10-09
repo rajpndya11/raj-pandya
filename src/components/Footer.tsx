@@ -1,6 +1,8 @@
-import React from 'react';
-import { Mail, Linkedin, MapPin, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, Linkedin, MapPin, Lock, Edit3, X, Check, ExternalLink } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
+import { usePortfolio } from '../context/PortfolioContext';
+import { storageService } from '../services/storageService';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -8,6 +10,46 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const { profile } = usePortfolio();
+  const [isEditingLinkedIn, setIsEditingLinkedIn] = useState(false);
+  const [customName, setCustomName] = useState(profile?.linkedinName || '');
+  const [customUrl, setCustomUrl] = useState(profile?.linkedin || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (profile?.linkedinName) setCustomName(profile.linkedinName);
+    if (profile?.linkedin) setCustomUrl(profile.linkedin);
+  }, [profile?.linkedinName, profile?.linkedin]);
+
+  const linkedinUrl = profile?.linkedin || 'https://www.linkedin.com/in/raj-pandya-pm';
+  const linkedinDisplayName = profile?.linkedinName || (profile?.linkedin ? profile.linkedin.replace(/^https?:\/\/(www\.)?/, '') : 'linkedin.com/in/raj-pandya-pm');
+  const emailAddress = profile?.email || 'rajpandya1131@gmail.com';
+  const location = profile?.location || 'Mumbai, India';
+
+  const handleSaveLinkedIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+    setIsSaving(true);
+    try {
+      const updated = {
+        ...profile,
+        linkedinName: customName.trim(),
+        linkedin: customUrl.trim()
+      };
+      await storageService.saveProfile(updated);
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setIsEditingLinkedIn(false);
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to save LinkedIn in footer:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <footer className="bg-[#171A18] text-[#F7F4ED] border-t border-[#2A2E2C]">
       {/* Main Footer Details */}
@@ -23,7 +65,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </p>
             <div className="flex items-center gap-2 text-xs text-[#77736B]">
               <MapPin className="w-3.5 h-3.5 text-[#B08D57]" />
-              <span>Mumbai, India</span>
+              <span>{location}</span>
             </div>
           </div>
 
@@ -90,28 +132,139 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="space-y-2.5 text-xs">
               <li>
                 <a
-                  href="mailto:rajpandya1131@gmail.com"
+                  href={`mailto:${emailAddress}`}
                   className="flex items-center gap-2 text-[#EFE9DC] hover:text-[#B08D57] transition-colors"
                 >
                   <Mail className="w-3.5 h-3.5 text-[#B08D57]" />
-                  <span>rajpandya1131@gmail.com</span>
+                  <span>{emailAddress}</span>
                 </a>
               </li>
-              <li>
+              <li className="flex items-center justify-between group gap-2">
                 <a
-                  href="https://www.linkedin.com/in/raj-pandya-pm"
+                  href={linkedinUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-[#EFE9DC] hover:text-[#B08D57] transition-colors"
+                  className="flex items-center gap-2 text-[#EFE9DC] hover:text-[#B08D57] transition-colors truncate flex-1"
                 >
-                  <Linkedin className="w-3.5 h-3.5 text-[#B08D57]" />
-                  <span>linkedin.com/in/raj-pandya-pm</span>
+                  <Linkedin className="w-3.5 h-3.5 text-[#B08D57] flex-shrink-0" />
+                  <span className="truncate">{linkedinDisplayName}</span>
                 </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomName(profile?.linkedinName || linkedinDisplayName);
+                    setCustomUrl(profile?.linkedin || linkedinUrl);
+                    setIsEditingLinkedIn(true);
+                  }}
+                  className="opacity-70 group-hover:opacity-100 hover:text-[#B08D57] text-[#77736B] p-1 transition-opacity text-[11px] flex items-center gap-1 cursor-pointer bg-[#232724] hover:bg-[#2A2E2C] rounded-md px-1.5 py-0.5"
+                  title="Rename LinkedIn Name and update URL"
+                  aria-label="Rename LinkedIn Name and update URL"
+                >
+                  <Edit3 className="w-2.5 h-2.5" />
+                  <span className="text-[10px]">Rename</span>
+                </button>
               </li>
             </ul>
           </div>
 
         </div>
+
+        {/* Quick Edit LinkedIn Modal */}
+        {isEditingLinkedIn && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+            <div 
+              className="relative w-full max-w-md bg-[#1D211F] border border-[#383C39] rounded-2xl shadow-2xl p-6 text-[#F7F4ED]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-[#2A2E2C]">
+                <div className="flex items-center gap-2">
+                  <Linkedin className="w-4 h-4 text-[#B08D57]" />
+                  <h3 className="font-serif font-bold text-sm tracking-wide">
+                    Rename LinkedIn Name & URL
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsEditingLinkedIn(false)}
+                  className="p-1 rounded-lg text-[#77736B] hover:text-[#F7F4ED] hover:bg-[#2A2E2C] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-[#A39D91] mt-2 mb-4 leading-relaxed">
+                Update how your LinkedIn profile appears in the bottom footer and where it links across the portfolio.
+              </p>
+
+              <form onSubmit={handleSaveLinkedIn} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B08D57] mb-1">
+                    LinkedIn Display Name (in bottom footer)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. linkedin.com/in/rajpandya-product-management"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#171A18] border border-[#383C39] text-xs text-[#F7F4ED] focus:border-[#B08D57] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#B08D57] mb-1">
+                    LinkedIn Profile URL
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://www.linkedin.com/in/..."
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#171A18] border border-[#383C39] text-xs text-[#F7F4ED] focus:border-[#B08D57] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <a
+                    href={customUrl || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-[#A39D91] hover:text-[#B08D57] flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Test Link</span>
+                  </a>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingLinkedIn(false)}
+                      className="px-3 py-1.5 rounded-lg border border-[#383C39] text-xs text-[#A39D91] hover:text-[#F7F4ED] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="px-4 py-1.5 rounded-lg bg-[#B08D57] text-[#171A18] hover:bg-[#C4A066] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {saveSuccess ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-950" />
+                          <span>Saved Live!</span>
+                        </>
+                      ) : isSaving ? (
+                        <span>Saving...</span>
+                      ) : (
+                        <span>Save & Apply</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Bottom Baseline */}
         <div className="pt-8 border-t border-[#2A2E2C] flex flex-col sm:flex-row items-center justify-between text-xs text-[#77736B] gap-4">
@@ -120,10 +273,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             className="cursor-default select-none"
             title=""
           >
-            © {new Date().getFullYear()} Raj Pandya. Built for Product Leadership.
+            © {new Date().getFullYear()} {profile?.name || 'Raj Pandya'}. Built for Product Leadership.
           </p>
           <div className="flex items-center gap-4">
-            <span className="text-[11px] text-[#77736B]">Mumbai • India</span>
+            <span className="text-[11px] text-[#77736B]">{location}</span>
             <button
               onClick={() => onNavigate('/admin')}
               className="text-[#3A3F3C] hover:text-[#B08D57] transition-colors p-1 rounded-sm focus:outline-none"

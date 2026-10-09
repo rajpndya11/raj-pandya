@@ -39,10 +39,13 @@ import {
   Menu,
   GraduationCap,
   Mail,
-  Presentation
+  Presentation,
+  Loader2,
+  Linkedin
 } from 'lucide-react';
 import { authService, BOOTSTRAP_ADMIN_EMAIL } from '../services/authService';
 import { storageService } from '../services/storageService';
+import { apiService } from '../services/apiService';
 import { compressImage, normalizeImageUrl } from '../utils/imageCompressor';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { RpMonogram, BrandLogo } from '../components/BrandLogo';
@@ -105,6 +108,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [profileSaved, setProfileSaved] = useState(false);
   const [isOptimizingPhoto, setIsOptimizingPhoto] = useState(false);
   const [photoStatusMessage, setPhotoStatusMessage] = useState('');
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [resumeStatusMessage, setResumeStatusMessage] = useState('');
+  const [linkedinSaved, setLinkedinSaved] = useState(false);
 
   // Experience state
   const [experiences, setExperiences] = useState<ExperienceItem[]>(storageService.getExperience());
@@ -831,32 +837,42 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     setProfile({ ...profile, metrics: updated });
   };
 
-  const handleResumeUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const fileUrl = event.target?.result as string;
-      const updated = { ...profile, resumeUrl: fileUrl };
-      setProfile(updated);
-      try {
+
+    setIsUploadingResume(true);
+    setResumeStatusMessage(`Uploading "${file.name}" to backend server...`);
+
+    try {
+      const result = await apiService.uploadResume(file);
+      if (result.success && result.url) {
+        const updated = { ...profile, resumeUrl: result.url };
+        setProfile(updated);
         await storageService.saveProfile(updated);
-        await storageService.saveMediaAsset({
-          id: `media-resume-${Date.now()}`,
-          name: file.name,
-          url: fileUrl,
-          type: file.type || 'application/pdf',
-          size: file.size,
-          createdAt: new Date().toISOString()
-        });
-        setPhotoStatusMessage('✓ Resume document uploaded & saved successfully to Firestore!');
-        setTimeout(() => setPhotoStatusMessage(''), 4000);
-      } catch (err: any) {
-        console.error('Resume upload error:', err);
-        setPhotoStatusMessage(`Resume upload error: ${err.message || 'Failed to save'}`);
+        setResumeStatusMessage(`✓ "${file.name}" uploaded to backend successfully and synced live!`);
+        setTimeout(() => setResumeStatusMessage(''), 6000);
+      } else {
+        throw new Error(result.error || 'Backend upload failed');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Resume upload error:', err);
+      setResumeStatusMessage(`Upload error: ${err.message || 'Failed to upload resume to backend server'}`);
+    } finally {
+      setIsUploadingResume(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSaveLinkedIn = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      await storageService.saveProfile(profile);
+      setLinkedinSaved(true);
+      setTimeout(() => setLinkedinSaved(false), 3000);
+    } catch (err: any) {
+      console.error('Save LinkedIn error:', err);
+    }
   };
 
   // Change master passcode
@@ -3050,7 +3066,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       </label>
                       <input
                         type="text"
-                        value={profile.secondaryCtaText || 'Download Resume ↓'}
+                        value={profile.secondaryCtaText || 'DOWNLOAD RESUME'}
                         onChange={(e) => setProfile({ ...profile, secondaryCtaText: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
                       />
@@ -4230,16 +4246,58 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#77736B] mb-1">
-                      LinkedIn Profile URL
-                    </label>
-                    <input
-                      type="text"
-                      value={profile.linkedin}
-                      onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
-                      className="w-full p-3 rounded-xl border border-[#DED8CC] text-sm focus:border-[#B08D57] outline-none"
-                    />
+                  <div className="sm:col-span-2 p-4 bg-[#F7F4ED] rounded-xl border border-[#DED8CC] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Linkedin className="w-4 h-4 text-[#0A66C2]" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-[#171A18]">
+                          LinkedIn Profile & Footer Display Name
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveLinkedIn}
+                        className="px-4 py-1.5 rounded-lg bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        {linkedinSaved ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Saved Live!</span>
+                          </>
+                        ) : (
+                          <span>Save LinkedIn Details</span>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[#77736B]">
+                      Renaming these fields directly updates the LinkedIn link and display text in the footer/bottom across the whole site.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          LinkedIn Display Name (e.g. at bottom)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. linkedin.com/in/rajpandya-product-management"
+                          value={profile.linkedinName || ''}
+                          onChange={(e) => setProfile({ ...profile, linkedinName: e.target.value })}
+                          className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#77736B] mb-1">
+                          LinkedIn Profile URL
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="https://www.linkedin.com/in/..."
+                          value={profile.linkedin || ''}
+                          onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
+                          className="w-full p-2.5 rounded-lg border border-[#DED8CC] text-xs bg-white focus:border-[#B08D57] outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -4268,47 +4326,124 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
-                {/* Resume Download / Upload */}
+                {/* Resume Download / Backend Upload */}
                 <div className="pt-4 border-t border-[#DED8CC] space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57]">
-                    Resume PDF Document
-                  </h4>
-                  <p className="text-xs text-[#77736B]">
-                    Upload your latest CV/Resume PDF or enter an external document link (Google Drive, Dropbox, Notion). When visitors click "Download Resume", this file will open.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#B08D57] flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-[#B08D57]" />
+                        <span>Resume PDF Document (Backend Storage)</span>
+                      </h4>
+                      <p className="text-xs text-[#77736B] mt-0.5">
+                        Upload your latest CV/Resume PDF directly to the backend server or enter an external document URL. When visitors click "DOWNLOAD RESUME" on the homepage, this file will download.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Upload status banner */}
+                  {resumeStatusMessage && (
+                    <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                      resumeStatusMessage.startsWith('✓') 
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                        : resumeStatusMessage.startsWith('Uploading')
+                        ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                        : 'bg-red-50 text-red-800 border border-red-200'
+                    }`}>
+                      {resumeStatusMessage.startsWith('Uploading') ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600 flex-shrink-0" />
+                      ) : resumeStatusMessage.startsWith('✓') ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                      )}
+                      <span>{resumeStatusMessage}</span>
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="text"
-                      placeholder="Paste PDF link (https://...)"
+                      placeholder="Paste PDF link (https://... or /uploads/resume.pdf)"
                       value={profile.resumeUrl || ''}
                       onChange={(e) => setProfile({ ...profile, resumeUrl: e.target.value })}
                       className="flex-1 p-3 rounded-xl border border-[#DED8CC] text-xs focus:border-[#B08D57] outline-none"
                     />
 
-                    <label className="px-5 py-3 rounded-xl bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm whitespace-nowrap">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Resume PDF</span>
+                    <label className={`px-5 py-3 rounded-xl ${
+                      isUploadingResume 
+                        ? 'bg-[#383C39] text-[#A39D91] cursor-not-allowed' 
+                        : 'bg-[#171A18] hover:bg-[#B08D57] text-[#F7F4ED] hover:text-[#171A18] cursor-pointer'
+                    } text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors shadow-sm whitespace-nowrap`}>
+                      {isUploadingResume ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Uploading to Server...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload Resume to Backend</span>
+                        </>
+                      )}
                       <input
                         type="file"
                         accept="application/pdf,.doc,.docx"
+                        disabled={isUploadingResume}
                         className="hidden"
                         onChange={handleResumeUpload}
                       />
                     </label>
                   </div>
 
-                  {profile.resumeUrl && (
-                    <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span className="truncate flex-1 font-medium">Active Resume: {profile.resumeUrl}</span>
+                  {profile.resumeUrl ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                      <div className="flex items-center gap-2 truncate flex-1">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span className="truncate font-semibold">Active Resume:</span>
+                        <span className="truncate text-emerald-700 font-mono text-[11px]">{profile.resumeUrl}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <a 
+                          href={profile.resumeUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          download="Raj_Pandya_Product_Manager_Resume.pdf"
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Test Download</span>
+                        </a>
+                        <a
+                          href="/api/resume/download"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-semibold transition-colors flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Backend Stream</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setProfile({ ...profile, resumeUrl: '' })}
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 hover:bg-red-50 hover:text-red-600 text-emerald-800 font-medium transition-colors"
+                          title="Reset to default resume"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                      <span className="font-medium">Using default executive PDF:</span>
+                      <span className="font-mono text-[11px]">/Raj_Pandya_Product_Manager_Resume.pdf</span>
                       <a 
-                        href={profile.resumeUrl} 
+                        href="/api/resume/download" 
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-[#B08D57] underline hover:text-[#171A18] font-semibold"
+                        className="ml-auto text-[#B08D57] hover:underline font-semibold flex items-center gap-1"
                       >
-                        Preview
+                        <Download className="w-3 h-3" />
+                        <span>Test Download API</span>
                       </a>
                     </div>
                   )}
