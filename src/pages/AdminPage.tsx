@@ -481,53 +481,61 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     else if (['pdf'].includes(extension)) fileType = 'pdf';
 
     try {
-      // Analyze complete source file dynamically (no limits, no caps, full slide/page extraction)
-      // Source file count = generated page/slide count
+      // 1. Upload raw document to backend file storage directly
+      // This prevents the project JSON from exceeding the Firestore 1MB document limit!
+      let serverUrl = '';
+      try {
+        const uploadRes = await apiService.uploadFile(file, 'documents');
+        if (uploadRes.success && uploadRes.url) {
+          serverUrl = uploadRes.url;
+        }
+      } catch (uploadErr) {
+        console.warn('Backend file upload note:', uploadErr);
+      }
+
+      // 2. Analyze document structure (page count, slides, text)
       const analysis = await analyzeUploadedDocument(file);
 
-      const dataReader = new FileReader();
-      dataReader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        setEditingProject(prev => {
-          if (!prev || !prev.files) return prev;
-          return {
-            ...prev,
-            files: prev.files.map(f => f.id === fileId ? {
-              ...f,
-              fileName: file.name,
-              fileType,
-              fileUrl: dataUrl,
-              title: f.title || analysis.title || file.name.replace(/\.[^/.]+$/, ""),
-              pageCount: analysis.pageCount,
-              slides: analysis.slides,
-              textContent: analysis.extractedText || f.textContent
-            } : f)
-          };
-        });
-      };
-      dataReader.readAsDataURL(file);
+      setEditingProject(prev => {
+        if (!prev || !prev.files) return prev;
+        return {
+          ...prev,
+          files: prev.files.map(f => f.id === fileId ? {
+            ...f,
+            fileName: file.name,
+            fileType,
+            fileUrl: serverUrl || f.fileUrl || '',
+            title: f.title || analysis.title || file.name.replace(/\.[^/.]+$/, ""),
+            pageCount: analysis.pageCount,
+            slides: analysis.slides,
+            textContent: analysis.extractedText || f.textContent
+          } : f)
+        };
+      });
     } catch (err) {
       console.error('Error analyzing document:', err);
-      // Robust fallback if custom parsing throws
-      const fallbackReader = new FileReader();
-      fallbackReader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        setEditingProject(prev => {
-          if (!prev || !prev.files) return prev;
-          return {
-            ...prev,
-            files: prev.files.map(f => f.id === fileId ? {
-              ...f,
-              fileName: file.name,
-              fileType,
-              fileUrl: dataUrl,
-              title: f.title || file.name.replace(/\.[^/.]+$/, ""),
-              pageCount: f.pageCount || 1
-            } : f)
-          };
-        });
-      };
-      fallbackReader.readAsDataURL(file);
+      // Fallback: upload file directly
+      try {
+        const uploadRes = await apiService.uploadFile(file, 'documents');
+        if (uploadRes.success && uploadRes.url) {
+          setEditingProject(prev => {
+            if (!prev || !prev.files) return prev;
+            return {
+              ...prev,
+              files: prev.files.map(f => f.id === fileId ? {
+                ...f,
+                fileName: file.name,
+                fileType,
+                fileUrl: uploadRes.url || '',
+                title: f.title || file.name.replace(/\.[^/.]+$/, ""),
+                pageCount: f.pageCount || 1
+              } : f)
+            };
+          });
+        }
+      } catch (fallbackErr) {
+        console.warn('Fallback upload error:', fallbackErr);
+      }
     }
   };
 
@@ -592,39 +600,56 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   };
 
   // Media Library Upload handler
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size exceeds 10MB. Please select a smaller file.');
+      if (file.size > 20 * 1024 * 1024) {
+        alert('File size exceeds 20MB. Please select a smaller file.');
         return;
       }
       setUploadingMedia(true);
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const result = event.target?.result as string;
-        if (result) {
+      try {
+        const uploadRes = await apiService.uploadFile(file, 'media');
+        const mediaUrl = uploadRes.success && uploadRes.url ? uploadRes.url : '';
+        if (mediaUrl) {
           const newAsset: MediaAsset = {
             id: `media-${Date.now()}`,
             name: file.name,
-            url: result,
+            url: mediaUrl,
             type: file.type,
             size: file.size,
             caption: 'Uploaded portfolio deliverable',
             createdAt: new Date().toISOString()
           };
-          try {
-            await storageService.saveMediaAsset(newAsset);
-            setMediaAssets(storageService.getMediaAssets());
-          } catch (err: any) {
-            console.error('Save media asset error:', err);
-            alert('Failed to save media to Firestore: ' + (err.message || 'Unknown error'));
-          } finally {
-            setUploadingMedia(false);
-          }
+          await storageService.saveMediaAsset(newAsset);
+          setMediaAssets(storageService.getMediaAssets());
+        } else {
+          // Fallback to compressed base64 if server upload fails
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const result = event.target?.result as string;
+            if (result) {
+              const newAsset: MediaAsset = {
+                id: `media-${Date.now()}`,
+                name: file.name,
+                url: result,
+                type: file.type,
+                size: file.size,
+                caption: 'Uploaded portfolio deliverable',
+                createdAt: new Date().toISOString()
+              };
+              await storageService.saveMediaAsset(newAsset);
+              setMediaAssets(storageService.getMediaAssets());
+            }
+          };
+          reader.readAsDataURL(file);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err: any) {
+        console.error('Save media asset error:', err);
+        alert('Failed to save media: ' + (err.message || 'Unknown error'));
+      } finally {
+        setUploadingMedia(false);
+      }
     }
   };
 
@@ -633,8 +658,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const file = e.target.files?.[0];
     if (file && editingProject) {
       try {
-        const compressed = await compressImage(file, 1400, 900, 0.85);
-        setEditingProject({ ...editingProject, coverImage: compressed });
+        const uploadRes = await apiService.uploadFile(file, 'covers');
+        if (uploadRes.success && uploadRes.url) {
+          setEditingProject({ ...editingProject, coverImage: uploadRes.url });
+        } else {
+          const compressed = await compressImage(file, 1200, 800, 0.82);
+          setEditingProject({ ...editingProject, coverImage: compressed });
+        }
       } catch (err) {
         console.warn('Cover image optimization note:', err);
       }
@@ -646,8 +676,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const file = e.target.files?.[0];
     if (file && editingProject) {
       try {
-        const compressed = await compressImage(file, 1200, 900, 0.85);
-        handleUpdateWireframe(wfId, 'url', compressed);
+        const uploadRes = await apiService.uploadFile(file, 'wireframes');
+        if (uploadRes.success && uploadRes.url) {
+          handleUpdateWireframe(wfId, 'url', uploadRes.url);
+        } else {
+          const compressed = await compressImage(file, 1100, 800, 0.82);
+          handleUpdateWireframe(wfId, 'url', compressed);
+        }
       } catch (err) {
         console.warn('Wireframe image optimization note:', err);
       }

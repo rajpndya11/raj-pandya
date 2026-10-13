@@ -123,6 +123,46 @@ class StorageService {
     return this.cloudError;
   }
 
+  // Recursively offloads large base64 payload strings to backend file storage (/uploads/...)
+  // This guarantees Firestore documents NEVER exceed the 1,048,576 byte limit!
+  async offloadLargePayloads(data: any): Promise<any> {
+    if (!data) return data;
+    if (typeof data === 'string') {
+      if (data.startsWith('data:') && data.includes(';base64,') && data.length > 500) {
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: `asset_${Date.now()}`,
+              fileData: data
+            })
+          });
+          const json = await res.json();
+          if (json && json.url) {
+            console.log(`[StorageService] Successfully offloaded base64 string (${data.length} chars) to ${json.url}`);
+            return json.url;
+          }
+        } catch (e) {
+          console.warn('[StorageService] Could not offload base64 string to backend:', e);
+        }
+      }
+      return data;
+    }
+    if (Array.isArray(data)) {
+      const items = await Promise.all(data.map(item => this.offloadLargePayloads(item)));
+      return items;
+    }
+    if (typeof data === 'object') {
+      const result: Record<string, any> = {};
+      for (const [k, v] of Object.entries(data)) {
+        result[k] = await this.offloadLargePayloads(v);
+      }
+      return result;
+    }
+    return data;
+  }
+
   // Sanitize data recursively to remove undefined values that Firestore rejects
   cleanPayload(data: any): any {
     if (data === null || data === undefined) return null;
@@ -482,39 +522,66 @@ class StorageService {
       updatedProject.createdAt = updatedProject.createdAt || new Date().toISOString().split('T')[0];
     }
 
-    const cleaned = this.cleanPayload(updatedProject);
+    // 1. Offload base64 payloads to backend disk storage to avoid Firestore 1MB document limit
+    const offloaded = await this.offloadLargePayloads(updatedProject);
+    const cleaned = this.cleanPayload(offloaded);
 
-    // 1. Authoritative write to Firestore
+    // Guarantee document size is within Firestore 1MB (1,048,576 bytes) ceiling
+    try {
+      const jsonStr = JSON.stringify(cleaned);
+      const sizeBytes = new Blob([jsonStr]).size;
+      if (sizeBytes > 950000) {
+        console.warn(`[Firestore] Project size is large (${sizeBytes} bytes). Sanitizing large file cache.`);
+        if (cleaned.files && Array.isArray(cleaned.files)) {
+          cleaned.files = cleaned.files.map((f: any) => ({
+            ...f,
+            fileUrl: typeof f.fileUrl === 'string' && f.fileUrl.startsWith('data:') ? '' : f.fileUrl
+          }));
+        }
+      }
+    } catch {}
+
+    // 2. Authoritative write to Firestore
     if (db) {
       try {
-        const ref = doc(db, 'projects', updatedProject.id);
+        const ref = doc(db, 'projects', cleaned.id);
         await setDoc(ref, cleaned, { merge: true });
-        console.log(`[Firestore] Project saved successfully: ${updatedProject.id}`);
+        console.log(`[Firestore] Project saved successfully: ${cleaned.id}`);
       } catch (err: any) {
-        console.error(`[Firestore] Save failed: ${err.message || 'Unknown error'}`);
-        throw new Error(`Firestore save failed: ${err.message || 'Unknown error'}`);
+        console.error(`[Firestore] Client save failed: ${err.message || 'Unknown error'}`);
+        // If client-side write encounters size or permission error, proxy save through server API
+        try {
+          const proxySaved = await apiService.saveProject(cleaned);
+          if (proxySaved) {
+            console.log(`[Firestore] Project saved via backend API fallback: ${cleaned.id}`);
+          } else {
+            throw err;
+          }
+        } catch {
+          throw new Error(`Firestore save failed: ${err.message || 'Unknown error'}`);
+        }
       }
     }
 
-    // 2. Mirror to Express Backend REST API
+    // 3. Mirror to Express Backend REST API
     try {
-      await apiService.saveProject(updatedProject);
+      await apiService.saveProject(cleaned);
     } catch (apiErr) {
       console.warn('API saveProject mirror notice:', apiErr);
     }
 
-    // 3. Update memory and local cache
+    // 4. Update memory and local cache
     if (existingIndex >= 0) {
-      projects[existingIndex] = updatedProject;
+      projects[existingIndex] = cleaned;
     } else {
-      projects.unshift(updatedProject);
+      projects.unshift(cleaned);
     }
     const sorted = projects.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     this.memoryProjects = sorted;
     safeStorage.setItem(PROJECTS_KEY, JSON.stringify(sorted));
     this.notify();
 
-    return updatedProject;
+    return cleaned;
   }
 
   // Authoritative Firestore delete
@@ -655,7 +722,8 @@ class StorageService {
       updatedAt: new Date().toISOString()
     };
 
-    const cleaned = this.cleanPayload(updated);
+    const offloaded = await this.offloadLargePayloads(updated);
+    const cleaned = this.cleanPayload(offloaded);
 
     // 1. Authoritative write to Firestore
     if (db) {

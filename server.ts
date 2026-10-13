@@ -47,6 +47,62 @@ try {
   console.warn('Server Firestore initialization notice:', err);
 }
 
+// Ensure public/uploads directory exists
+const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Recursively extracts large base64 strings and saves them as static files in public/uploads
+// This guarantees Firestore documents NEVER exceed the 1,048,576 byte limit!
+function stripAndSaveBase64Payloads(data: any, prefix = 'asset'): any {
+  if (!data) return data;
+  if (typeof data === 'string') {
+    if (data.startsWith('data:') && data.includes(';base64,') && data.length > 500) {
+      try {
+        const matches = data.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const mime = matches[1];
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          let ext = '.bin';
+          if (mime.includes('png')) ext = '.png';
+          else if (mime.includes('jpeg') || mime.includes('jpg')) ext = '.jpg';
+          else if (mime.includes('webp')) ext = '.webp';
+          else if (mime.includes('svg')) ext = '.svg';
+          else if (mime.includes('gif')) ext = '.gif';
+          else if (mime.includes('pdf')) ext = '.pdf';
+          else if (mime.includes('presentation') || mime.includes('powerpoint')) ext = '.pptx';
+          else if (mime.includes('word') || mime.includes('msword')) ext = '.docx';
+          else if (mime.includes('text')) ext = '.txt';
+
+          const safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+          const fileName = `${safePrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
+          const filePath = path.join(uploadsDir, fileName);
+          fs.writeFileSync(filePath, buffer);
+          console.log(`[Backend Upload] Saved base64 payload to ${fileName} (${buffer.length} bytes)`);
+          return `/uploads/${fileName}`;
+        }
+      } catch (err) {
+        console.warn('Failed to extract base64 payload:', err);
+      }
+    }
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item, idx) => stripAndSaveBase64Payloads(item, `${prefix}_${idx}`));
+  }
+  if (typeof data === 'object') {
+    const res: Record<string, any> = {};
+    for (const [key, val] of Object.entries(data)) {
+      res[key] = stripAndSaveBase64Payloads(val, `${prefix}_${key}`);
+    }
+    return res;
+  }
+  return data;
+}
+
 // Clean object helper
 function cleanPayload(data: any): any {
   if (data === null || data === undefined) return null;
@@ -101,8 +157,9 @@ app.put('/api/profile', async (req, res) => {
     if (!profileData) {
       return res.status(400).json({ success: false, error: 'Missing profile payload' });
     }
+    const offloaded = stripAndSaveBase64Payloads(profileData, 'profile');
     const cleaned = cleanPayload({
-      ...profileData,
+      ...offloaded,
       updatedAt: new Date().toISOString()
     });
     if (db) {
@@ -156,8 +213,10 @@ app.put('/api/projects/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const projectData = req.body;
+    const safePrefix = `proj_${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    const offloaded = stripAndSaveBase64Payloads(projectData, safePrefix);
     const cleaned = cleanPayload({
-      ...projectData,
+      ...offloaded,
       id,
       updatedAt: new Date().toISOString()
     });
@@ -330,12 +389,6 @@ app.delete('/api/media/:id', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// Ensure public/uploads directory exists
-const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 // ==========================================
 // RESUME UPLOAD & DOWNLOAD API

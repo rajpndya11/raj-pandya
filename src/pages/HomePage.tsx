@@ -108,13 +108,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
 
               {/* Action Buttons */}
               <div className="pt-4 flex flex-wrap items-center gap-4">
-                <button
-                  onClick={() => onNavigate(profile.primaryCtaLink || '/projects')}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] hover:text-[#171A18] transition-all cursor-pointer shadow-sm"
-                >
-                  <span>{profile.primaryCtaText || 'View Projects'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
                 <a
                   href={profile.secondaryCtaText ? (profile.resumeUrl || '/api/resume/download') : '/api/resume/download'}
                   download={`${(profile.name || 'Raj_Pandya').replace(/\s+/g, '_')}_Product_Manager_Resume.pdf`}
@@ -137,7 +130,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenConnect })
                     document.body.removeChild(link);
                     e.preventDefault();
                   }}
-                  className="inline-flex items-center justify-center px-7 py-3 rounded-full text-xs font-bold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#2A2E2C] hover:border-[#B08D57] border border-[#383C39] transition-all cursor-pointer shadow-sm select-none"
+                  className="inline-flex items-center justify-center px-7 py-3 rounded-full text-xs font-bold tracking-wider uppercase bg-[#171A18] text-[#F7F4ED] hover:bg-[#B08D57] hover:text-[#171A18] hover:border-[#B08D57] border border-[#383C39] transition-all cursor-pointer shadow-sm select-none"
                 >
                   <span>{profile.secondaryCtaText || 'DOWNLOAD RESUME'}</span>
                 </a>
